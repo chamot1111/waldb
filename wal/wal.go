@@ -424,7 +424,7 @@ func (w *WAL) checkPointing() (errOpsCount int, err error) {
 	archiveFileName := fmt.Sprintf(walArchiveFilePrefix+"%012d-s%05d.bin", w.persistentState.WalIndex, w.shardIndex)
 	fullPathArchive := path.Join(w.config.WalArchiveFolder, archiveFileName)
 	curWalPath := getWalPath(w.config, w.shardIndex)
-	err = os.Rename(curWalPath, fullPathArchive)
+	err = wutils.MoveFile(curWalPath, fullPathArchive)
 	if err != nil {
 		return errOpsCount, err
 	}

@@ -258,7 +258,7 @@ func ArchiveAtomicOp(file *os.File, archivePath string) error {
 		if err != nil {
 			return err
 		}
-		err = os.Rename(destPathTmp, destPath)
+		err = wutils.MoveFile(destPathTmp, destPath)
 		if err != nil {
 			return err
 		}
