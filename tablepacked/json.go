@@ -184,7 +184,7 @@ func (c ColumnDescriptor) appendToJSONValue(inputBuffer *wutils.Buffer, cd Colum
 	case Tstring:
 		if cd.Buffer == nil {
 			res.WriteString("null")
-			return errors.New("Enum value is not in possibilities")
+			return nil
 		}
 		res.WriteByte('"')
 		for i := 0; i < len(cd.Buffer); i++ {
