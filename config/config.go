@@ -17,16 +17,14 @@ type Config struct {
 // InitDefaultConfig init config with default parameters
 func InitDefaultConfig() *Config {
 	return &Config{
-		ActiveFolder:             "active",
-		ArchiveFolder:            "archive",
-		WalArchiveFolder:         "wal-archive",
-		ReplicationActiveFolder:  "replication/active",
-		ReplicationArchiveFolder: "replication/archive",
-		ShardCount:               4,
-		MaxFileOpen:              100,
-		WALFolder:                ".",
-		MaxWALFileSize:           16000000,
-		MaxWALFileDurationS:      10 * 60,
+		ActiveFolder:        "data/active",
+		ArchiveFolder:       "data/archive",
+		WalArchiveFolder:    "data/wal-archive",
+		ShardCount:          4,
+		MaxFileOpen:         100,
+		WALFolder:           ".",
+		MaxWALFileSize:      16000000,
+		MaxWALFileDurationS: 10 * 60,
 	}
 }
 
