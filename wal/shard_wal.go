@@ -54,14 +54,14 @@ func InitShardWAL(config config.Config, logger *zap.Logger) (*ShardWAL, error) {
 }
 
 // ExecRsyncCommand will clean up, pause, execute the rsync command and resume
-func (swa *ShardWAL) ExecRsyncCommand() error {
+func (swa *ShardWAL) ExecRsyncCommand() ([]byte, error) {
 	if swa.config.RsyncCommand == "" {
 		swa.logger.Info("No rsync command")
-		return nil
+		return nil, nil
 	}
 	if backgroundReplicatorStarted {
 		swa.logger.Info("Could not launch rsync command while replicator running")
-		return fmt.Errorf("Could not launch rsync command while replicator running")
+		return nil, fmt.Errorf("Could not launch rsync command while replicator running")
 	}
 	defer func() {
 		for _, w := range swa.wals {
@@ -83,13 +83,13 @@ func (swa *ShardWAL) ExecRsyncCommand() error {
 
 	cmd := exec.Command("/bin/sh", "-c", cmdExpanded)
 	swa.logger.Info("Running rsync command and waiting for it to finish ...", zap.String("cmd", swa.config.RsyncCommand))
-	err := cmd.Run()
+	out, err := cmd.CombinedOutput()
 	if err != nil {
 		swa.logger.Info("Finish rsync command with error", zap.Error(err))
-		return err
+		return out, err
 	}
 	swa.logger.Info("Finish rsync command successfully")
-	return err
+	return out, err
 }
 
 // GetWalForShardIndex get wal for shard index

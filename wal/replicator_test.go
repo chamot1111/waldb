@@ -90,7 +90,7 @@ func TestRsyncCmd(t *testing.T) {
 		t.Fatalf("%v", err)
 	}
 
-	err = shardWal.ExecRsyncCommand()
+	_, err = shardWal.ExecRsyncCommand()
 	if err != nil {
 		t.Fatalf("%v", err)
 	}

@@ -108,6 +108,6 @@ func (d *Driver) Close() error {
 }
 
 // ExecRsyncCommand will clean up, pause, execute the rsync command and resume
-func (d *Driver) ExecRsyncCommand() error {
+func (d *Driver) ExecRsyncCommand() ([]byte, error) {
 	return d.shardWal.ExecRsyncCommand()
 }
