@@ -1,7 +1,9 @@
 package wal
 
 import (
+	"fmt"
 	"os/exec"
+	"strings"
 	"sync"
 
 	"github.com/chamot1111/waldb/config"
@@ -57,6 +59,10 @@ func (swa *ShardWAL) ExecRsyncCommand() error {
 		swa.logger.Info("No rsync command")
 		return nil
 	}
+	if backgroundReplicatorStarted {
+		swa.logger.Info("Could not launch rsync command while replicator running")
+		return fmt.Errorf("Could not launch rsync command while replicator running")
+	}
 	defer func() {
 		for _, w := range swa.wals {
 			w.mutex.Unlock()
@@ -64,9 +70,17 @@ func (swa *ShardWAL) ExecRsyncCommand() error {
 	}()
 	for _, w := range swa.wals {
 		w.mutex.Lock()
-		w.w.Close()
+		w.w.suspend()
+		defer func(ww *WAL) {
+			ww.resume()
+		}(w.w)
 	}
-	cmd := exec.Command("/bin/sh", "-c", swa.config.RsyncCommand)
+
+	cmdExpanded := strings.ReplaceAll(swa.config.RsyncCommand, "%act", swa.config.ActiveFolder)
+	cmdExpanded = strings.ReplaceAll(cmdExpanded, "%arc", swa.config.ArchiveFolder)
+	cmdExpanded = strings.ReplaceAll(cmdExpanded, "%wal", swa.config.WALFolder)
+
+	cmd := exec.Command("/bin/sh", "-c", cmdExpanded)
 	swa.logger.Info("Running rsync command and waiting for it to finish ...", zap.String("cmd", swa.config.RsyncCommand))
 	err := cmd.Run()
 	if err != nil {

@@ -46,7 +46,7 @@ func InitDriver(conf config.Config, logger *zap.Logger) (*Driver, error) {
 
 // GetReplicator get replicator
 func (d *Driver) GetReplicator() *wal.Replicator {
-	return wal.InitReplicator(d.shardWal.GetArchiveEventChan(), d.conf.ReplicationActiveFolder, d.conf.ReplicationArchiveFolder, d.logger)
+	return wal.InitReplicator(d.shardWal.GetArchiveEventChan(), d.conf.ReplicationActiveFolder, d.conf.ReplicationArchiveFolder, "", d.logger)
 }
 
 // AppendRowData append rows to a container file

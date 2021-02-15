@@ -317,6 +317,16 @@ func (w *WAL) Close() error {
 	return nil
 }
 
+func (w *WAL) suspend() {
+	w.Close()
+	close(w.walFileArchiveEvent)
+}
+
+func (w *WAL) resume() {
+	w.walFileArchiveEvent = make(chan string, 1000000)
+	AddExistingWALFileToChan(w.walFileArchiveEvent, w.config.WalArchiveFolder)
+}
+
 func (w *WAL) createNewFile() error {
 	var err error
 	w.fileSize = 0
@@ -506,7 +516,9 @@ func (w *WAL) convertUnsucessfulWalCmdsToOps() []*fileop.FileBatchOp {
 				op.FileSize = int64(cmd.fileSize)
 			case archiveCmd:
 				op.OpKind = fileop.ArchiveOp
-				op.ArchiveFileName = cf.ArchivePath(w.config.ArchiveFolder, w.shardIndex, int(w.walFile.walIndex), int(cmd.operationIndex))
+				if w.config.ArchiveFolder != "" {
+					op.ArchiveFileName = cf.ArchivePath(w.config.ArchiveFolder, w.shardIndex, int(w.walFile.walIndex), int(cmd.operationIndex))
+				}
 			case truncateCmd:
 				op.OpKind = fileop.TruncateOp
 			}

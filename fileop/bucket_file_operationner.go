@@ -306,7 +306,7 @@ func loopOpApplyer(config config.Config, jobQueue chan fileBatchOpWithFile, erro
 					goto Next
 				}
 			case ArchiveOp:
-				fileDeleted, err := ArchiveAtomicOp(job.fd.file, cmd.ActiveFileName, cmd.ArchiveFileName, len(job.op.Ops)-1 == iCmd, config.DeleteInsteadOfArchiving)
+				fileDeleted, err := ArchiveAtomicOp(job.fd.file, cmd.ActiveFileName, cmd.ArchiveFileName, len(job.op.Ops)-1 == iCmd, cmd.ArchiveFileName == "")
 				if fileDeleted {
 					job.fd.file = nil
 				}

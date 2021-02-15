@@ -286,6 +286,7 @@ func ReadFileFromPath(path string) (*File, error) {
 	res := initFileForRead()
 
 	file, err := os.Open(path)
+	defer file.Close()
 	if err != nil {
 		return nil, err
 	}
@@ -429,7 +430,7 @@ func (wf *File) ColdReplay(activeFolder, archiveFolder string) wutils.ErrorList 
 				}
 			case archiveCmd:
 				archiveFileName := cf.ArchivePath(archiveFolder, int(wf.shardIndex), int(wf.walIndex), int(cmd.operationIndex))
-				deletedFile, err := fileop.ArchiveAtomicOp(file, cf.PathToFileFromFolder(activeFolder), archiveFileName, len(perFile)-1 == iCmd, false)
+				deletedFile, err := fileop.ArchiveAtomicOp(file, cf.PathToFileFromFolder(activeFolder), archiveFileName, len(perFile)-1 == iCmd, archiveFolder == "")
 				if err != nil {
 					errors.Add(err)
 					break
