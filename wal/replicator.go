@@ -79,11 +79,10 @@ func (r *Replicator) Execute() error {
 func (r *Replicator) Start() {
 	backgroundReplicatorStarted = true
 	r.wg.Add(1)
-	defer r.wg.Done()
 	go r.loop()
 }
 
-// Stop execute the replicator
+// Stop execute the replicator and wait for it to finish current wal
 func (r *Replicator) Stop() {
 	r.end = true
 	r.wg.Wait()
@@ -91,6 +90,7 @@ func (r *Replicator) Stop() {
 }
 
 func (r *Replicator) loop() {
+	defer r.wg.Done()
 	for archiveWalFilePath := range r.archiveEventChan {
 		if r.replicationActivated() {
 			walFile, err := ReadFileFromPath(archiveWalFilePath)

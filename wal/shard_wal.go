@@ -78,7 +78,8 @@ func (swa *ShardWAL) ExecRsyncCommand() error {
 
 	cmdExpanded := strings.ReplaceAll(swa.config.RsyncCommand, "%act", swa.config.ActiveFolder)
 	cmdExpanded = strings.ReplaceAll(cmdExpanded, "%arc", swa.config.ArchiveFolder)
-	cmdExpanded = strings.ReplaceAll(cmdExpanded, "%wal", swa.config.WALFolder)
+	cmdExpanded = strings.ReplaceAll(cmdExpanded, "%walact", swa.config.WALFolder)
+	cmdExpanded = strings.ReplaceAll(cmdExpanded, "%walarc", swa.config.WalArchiveFolder)
 
 	cmd := exec.Command("/bin/sh", "-c", cmdExpanded)
 	swa.logger.Info("Running rsync command and waiting for it to finish ...", zap.String("cmd", swa.config.RsyncCommand))
