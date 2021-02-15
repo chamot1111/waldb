@@ -106,3 +106,8 @@ func (d *Driver) Flush() (errOpsCount int, err error) {
 func (d *Driver) Close() error {
 	return d.shardWal.CloseAll().Err()
 }
+
+// ExecRsyncCommand will clean up, pause, execute the rsync command and resume
+func (d *Driver) ExecRsyncCommand() error {
+	return d.shardWal.ExecRsyncCommand()
+}

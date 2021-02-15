@@ -1,6 +1,7 @@
 package wal
 
 import (
+	"os/exec"
 	"sync"
 
 	"github.com/chamot1111/waldb/config"
@@ -17,7 +18,9 @@ type shardWALRessource struct {
 // ShardWAL is a shard of wal to maximise cpu bound operation and
 // and spread checpoint operations
 type ShardWAL struct {
-	wals []*shardWALRessource
+	wals   []*shardWALRessource
+	config config.Config
+	logger *zap.Logger
 }
 
 // InitShardWAL init a shard wal
@@ -42,8 +45,36 @@ func InitShardWAL(config config.Config, logger *zap.Logger) (*ShardWAL, error) {
 	}
 
 	return &ShardWAL{
-		wals: wals,
+		wals:   wals,
+		config: config,
+		logger: logger,
 	}, nil
+}
+
+// ExecRsyncCommand will clean up, pause, execute the rsync command and resume
+func (swa *ShardWAL) ExecRsyncCommand() error {
+	if swa.config.RsyncCommand == "" {
+		swa.logger.Info("No rsync command")
+		return nil
+	}
+	defer func() {
+		for _, w := range swa.wals {
+			w.mutex.Unlock()
+		}
+	}()
+	for _, w := range swa.wals {
+		w.mutex.Lock()
+		w.w.Close()
+	}
+	cmd := exec.Command("/bin/sh", "-c", swa.config.RsyncCommand)
+	swa.logger.Info("Running rsync command and waiting for it to finish ...", zap.String("cmd", swa.config.RsyncCommand))
+	err := cmd.Run()
+	if err != nil {
+		swa.logger.Info("Finish rsync command with error", zap.Error(err))
+		return err
+	}
+	swa.logger.Info("Finish rsync command successfully")
+	return err
 }
 
 // GetWalForShardIndex get wal for shard index

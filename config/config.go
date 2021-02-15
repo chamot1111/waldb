@@ -13,6 +13,8 @@ type Config struct {
 	WALFolder                string
 	MaxWALFileSize           int
 	MaxWALFileDurationS      int
+	ArchiveCommand           string
+	RsyncCommand             string
 }
 
 // InitDefaultConfig init config with default parameters
