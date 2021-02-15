@@ -340,15 +340,19 @@ func getWalPath(c config.Config, shardIndex int) string {
 }
 
 func (w *WAL) checkpointIfNecessary() error {
-	if w.needCheckpointing() {
+	if w.needCheckpointingSoftLimit() || w.needCheckpointingHardLimit() {
 		_, err := w.checkPointing()
 		return err
 	}
 	return nil
 }
 
-func (w *WAL) needCheckpointing() bool {
+func (w *WAL) needCheckpointingSoftLimit() bool {
 	return w.fileSize > w.config.MaxWALFileSize || time.Since(w.lastCheckpointingTime).Seconds() > float64(w.config.MaxWALFileDurationS)
+}
+
+func (w *WAL) needCheckpointingHardLimit() bool {
+	return len(w.walFile.cmdsOrder) >= successOperationCount
 }
 
 func (w *WAL) applying() (errOpsCount int, err error) {
