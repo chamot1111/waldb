@@ -178,7 +178,7 @@ func TestArchive(t *testing.T) {
 	const walIndex = 1
 	const operationIndex = 2
 
-	err = bfo.Archive(&cf, shardIndex, walIndex, operationIndex)
+	_, err = bfo.Archive(&cf, shardIndex, walIndex, operationIndex, false)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -204,7 +204,7 @@ func TestArchive(t *testing.T) {
 	}
 
 	// another archive should change nothing
-	err = bfo.Archive(&cf, shardIndex, walIndex, operationIndex)
+	_, err = bfo.Archive(&cf, shardIndex, walIndex, operationIndex, false)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -276,6 +276,7 @@ func TestApplyBatchOp(t *testing.T) {
 					OpKind:          ArchiveOp,
 					FileSize:        10,
 					OperationIndex:  2,
+					ActiveFileName:  cf.PathToFile(*sc),
 					ArchiveFileName: cf.ArchivePath(sc.ArchiveFolder, 0, 0, 2),
 				},
 			},

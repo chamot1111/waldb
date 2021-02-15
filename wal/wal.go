@@ -498,6 +498,7 @@ func (w *WAL) convertUnsucessfulWalCmdsToOps() []*fileop.FileBatchOp {
 				Buffer:         cmd.buffer,
 				Offset:         cmd.writeOffset,
 				OperationIndex: uint64(cmd.operationIndex),
+				ActiveFileName: cf.PathToFile(w.config),
 			}
 			switch cmd.cmd {
 			case writeCmd:

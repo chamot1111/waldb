@@ -14,16 +14,16 @@ type c = ColumnDescriptor
 var InteractionTable = Table{
 	Name: "interaction",
 	Columns: []c{
-		{Name: "LearningSessionId", Type: Tuint},
-		{Name: "LearningItemId", Type: Tuint},
-		{Name: "ApplicationId", Type: Tuint},
-		{Name: "ExerciseId", Type: Tuint},
-		{Name: "Date", Type: Tuint},
-		{Name: "Type", Type: Tuint},
-		{Name: "TimeSpentOn", Type: Tuint},
-		{Name: "Turn", Type: Tuint},
-		{Name: "AnswerStatus", Type: Tenum, EnumValues: []string{"none", "ok", "ko", "excluded"}},
-		{Name: "AnswerValue", Type: Tstring},
+		{Name: "LearningSessionId", JSONKey: "LearningSessionId", Type: Tuint},
+		{Name: "LearningItemId", JSONKey: "LearningItemId", Type: Tuint},
+		{Name: "ApplicationId", JSONKey: "ApplicationId", Type: Tuint},
+		{Name: "ExerciseId", JSONKey: "ExerciseId", Type: Tuint},
+		{Name: "Date", JSONKey: "Date", Type: Tuint},
+		{Name: "Type", JSONKey: "Type", Type: Tuint},
+		{Name: "TimeSpentOn", JSONKey: "TimeSpentOn", Type: Tuint},
+		{Name: "Turn", JSONKey: "Turn", Type: Tuint},
+		{Name: "AnswerStatus", JSONKey: "AnswerStatus", Type: Tenum, EnumValues: []string{"none", "ok", "ko", "excluded"}},
+		{Name: "AnswerValue", JSONKey: "AnswerValue", Type: Tstring},
 	},
 }
 

@@ -51,12 +51,13 @@ func InitBucketFileOperationner(c config.Config, logger *zap.Logger) (*BucketFil
 func (bfo *BucketFileOperationner) cleanFileData(fd *fileData) error {
 	f := fd.file
 	fd.file = nil
-	err := f.Close()
-	if err != nil {
-		return err
+	if f != nil {
+		if err := f.Close(); err != nil {
+			return err
+		}
 	}
 	fd.touchElement = nil
-	return err
+	return nil
 }
 
 func (bfo *BucketFileOperationner) limitOpenFiles() {
@@ -145,13 +146,13 @@ func (bfo *BucketFileOperationner) Truncate(cf *config.ContainerFile, offset int
 }
 
 // Archive file
-func (bfo *BucketFileOperationner) Archive(cf *config.ContainerFile, shardIndex, walIndex, operationIndex int) error {
+func (bfo *BucketFileOperationner) Archive(cf *config.ContainerFile, shardIndex, walIndex, operationIndex int, deleteActiveFile bool) (deletedFile bool, err error) {
 	fileData, err := bfo.getFileDataLimitAndTouch(*cf)
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	return ArchiveAtomicOp(fileData.file, cf.ArchivePath(bfo.config.ArchiveFolder, shardIndex, walIndex, operationIndex))
+	return ArchiveAtomicOp(fileData.file, cf.PathToFile(bfo.config), cf.ArchivePath(bfo.config.ArchiveFolder, shardIndex, walIndex, operationIndex), deleteActiveFile, false)
 }
 
 // ApplyBatchOp execute the operations in one atomic operation
@@ -202,8 +203,15 @@ func (bfo *BucketFileOperationner) ApplyBatchOp(files []*FileBatchOp) ErrorFOPLi
 			fd: fd,
 		}
 	}
+
 	close(jobQueue)
 	wg.Wait()
+	close(finishChan)
+	for finishFd := range finishChan {
+		if finishFd != nil && finishFd.file == nil {
+			bfo.removeFileData(finishFd.key)
+		}
+	}
 	close(errorChan)
 	for e := range errorChan {
 		errors.Add(e)
@@ -235,43 +243,56 @@ func TruncateAtomicOp(offset uint64, file *os.File) error {
 }
 
 // ArchiveAtomicOp archive atomic op
-func ArchiveAtomicOp(file *os.File, archivePath string) error {
+func ArchiveAtomicOp(file *os.File, activePath, archivePath string, deleteActiveFile, deleteInsteadOfArchiving bool) (isActiveFileDeeleted bool, err error) {
 	destPath := archivePath
-	if _, err := os.Stat(destPath); os.IsNotExist(err) {
-		destPathTmp := destPath + ".tmp"
-		if err := os.MkdirAll(path.Dir(destPathTmp), 0744); err != nil {
-			return err
-		}
-		destFileTmp, err := os.OpenFile(destPathTmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0744)
-		if err != nil {
-			return fmt.Errorf("could not open file for archiving %s: %w", destPath, err)
-		}
-		_, err = file.Seek(0, 0)
-		if err != nil {
-			return err
-		}
-		_, err = io.Copy(destFileTmp, file)
-		if err != nil {
-			return err
-		}
-		err = destFileTmp.Close()
-		if err != nil {
-			return err
-		}
-		err = wutils.MoveFile(destPathTmp, destPath)
-		if err != nil {
-			return err
+	if !deleteInsteadOfArchiving {
+		if _, err := os.Stat(destPath); os.IsNotExist(err) {
+			destPathTmp := destPath + ".tmp"
+			if err := os.MkdirAll(path.Dir(destPathTmp), 0744); err != nil {
+				return false, err
+			}
+			destFileTmp, err := os.OpenFile(destPathTmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0744)
+			if err != nil {
+				return false, fmt.Errorf("could not open file for archiving %s: %w", destPath, err)
+			}
+			_, err = file.Seek(0, 0)
+			if err != nil {
+				return false, err
+			}
+			_, err = io.Copy(destFileTmp, file)
+			if err != nil {
+				return false, err
+			}
+			err = destFileTmp.Close()
+			if err != nil {
+				return false, err
+			}
+			err = wutils.MoveFile(destPathTmp, destPath)
+			if err != nil {
+				return false, err
+			}
 		}
 	}
-	err := file.Truncate(0)
-	return err
+
+	if deleteActiveFile {
+		if err := file.Close(); err != nil {
+			return false, err
+		}
+		if err := os.Remove(activePath); err != nil {
+			return false, err
+		}
+		return true, err
+	}
+
+	err = file.Truncate(0)
+	return false, err
 }
 
 func loopOpApplyer(config config.Config, jobQueue chan fileBatchOpWithFile, errorChan chan ErrorFOP, finishChan chan *fileData, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for job := range jobQueue {
-		for _, cmd := range job.op.Ops {
+		for iCmd, cmd := range job.op.Ops {
 			switch cmd.OpKind {
 			case WriteOp:
 				cmd.Buffer.ResetRead()
@@ -285,7 +306,10 @@ func loopOpApplyer(config config.Config, jobQueue chan fileBatchOpWithFile, erro
 					goto Next
 				}
 			case ArchiveOp:
-				err := ArchiveAtomicOp(job.fd.file, cmd.ArchiveFileName)
+				fileDeleted, err := ArchiveAtomicOp(job.fd.file, cmd.ActiveFileName, cmd.ArchiveFileName, len(job.op.Ops)-1 == iCmd, config.DeleteInsteadOfArchiving)
+				if fileDeleted {
+					job.fd.file = nil
+				}
 				if err != nil {
 					errorChan <- ErrorFOP{
 						Err:            err,
@@ -306,11 +330,13 @@ func loopOpApplyer(config config.Config, jobQueue chan fileBatchOpWithFile, erro
 				}
 			}
 		}
-		if err := job.fd.file.Sync(); err != nil {
-			errorChan <- ErrorFOP{
-				Err:            err,
-				OperationIndex: -1,
-				Fbo:            job.op,
+		if job.fd.file != nil {
+			if err := job.fd.file.Sync(); err != nil {
+				errorChan <- ErrorFOP{
+					Err:            err,
+					OperationIndex: -1,
+					Fbo:            job.op,
+				}
 			}
 		}
 	Next:

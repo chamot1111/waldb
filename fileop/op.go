@@ -25,4 +25,5 @@ type Op struct {
 	FileSize        int64
 	OperationIndex  uint64
 	ArchiveFileName string
+	ActiveFileName  string
 }

@@ -2,6 +2,7 @@ package config
 
 // Config config
 type Config struct {
+	DeleteInsteadOfArchiving bool
 	ActiveFolder             string
 	ArchiveFolder            string
 	WalArchiveFolder         string

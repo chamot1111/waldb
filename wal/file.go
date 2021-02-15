@@ -412,7 +412,7 @@ func (wf *File) ColdReplay(activeFolder, archiveFolder string) wutils.ErrorList 
 			errors.Add(err)
 			break
 		}
-		for _, cmd := range perFile {
+		for iCmd, cmd := range perFile {
 			switch cmd.cmd {
 			case writeCmd:
 				cmd.buffer.ResetRead()
@@ -429,10 +429,13 @@ func (wf *File) ColdReplay(activeFolder, archiveFolder string) wutils.ErrorList 
 				}
 			case archiveCmd:
 				archiveFileName := cf.ArchivePath(archiveFolder, int(wf.shardIndex), int(wf.walIndex), int(cmd.operationIndex))
-				err = fileop.ArchiveAtomicOp(file, archiveFileName)
+				deletedFile, err := fileop.ArchiveAtomicOp(file, cf.PathToFileFromFolder(activeFolder), archiveFileName, len(perFile)-1 == iCmd, false)
 				if err != nil {
 					errors.Add(err)
 					break
+				}
+				if deletedFile {
+					file = nil
 				}
 			}
 		}

@@ -47,7 +47,7 @@ func (p ErrorFOPList) Error() string {
 	case 0:
 		return "no errors"
 	case 1:
-		return p[0].Err.Error()
+		return fmt.Sprintf("error on %s (operation index: %d): %s", p[0].Fbo.ContainerFile.Key(), p[0].OperationIndex, p[0].Err.Error())
 	}
 	return fmt.Sprintf("%s (and %d more errors)", p[0].Err.Error(), len(p)-1)
 }
