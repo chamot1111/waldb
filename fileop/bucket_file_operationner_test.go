@@ -204,7 +204,7 @@ func TestArchive(t *testing.T) {
 	}
 
 	// another archive should change nothing
-	_, err = bfo.Archive(&cf, shardIndex, walIndex, operationIndex, false)
+	_, err = bfo.Archive(&cf, shardIndex, walIndex, operationIndex+1, false)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}

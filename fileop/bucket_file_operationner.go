@@ -264,6 +264,11 @@ func ArchiveAtomicOp(file *os.File, activePath, archivePath string, deleteActive
 				return false, fmt.Errorf("could not open file for archiving %s: %w", destPath, err)
 			}
 
+			_, err = file.Seek(0, 0)
+			if err != nil {
+				return false, err
+			}
+
 			_, err = io.Copy(destFileTmp, file)
 			if err != nil {
 				return false, err
