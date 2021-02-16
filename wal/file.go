@@ -3,6 +3,7 @@ package wal
 import (
 	"bufio"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -349,6 +350,9 @@ func ReadFileFromPath(path string) (*File, error) {
 	return res, nil
 }
 
+// ErrBadWalFileCrcCommand means a command has a bad CRC and will be discarded
+var ErrBadWalFileCrcCommand = errors.New("bad CRC for command")
+
 func readCmdFromReader(reader *bufio.Reader, curIndex int) (*walCmd, error) {
 	var crc uint8 = 128
 	lenKey, err := reader.ReadByte()
@@ -435,7 +439,7 @@ func readCmdFromReader(reader *bufio.Reader, curIndex int) (*walCmd, error) {
 	}
 
 	if crc != readCrd {
-		return nil, fmt.Errorf("bad CRC for command")
+		return nil, ErrBadWalFileCrcCommand
 	}
 
 	fileSize := binary.BigEndian.Uint64(bFileSize[:])

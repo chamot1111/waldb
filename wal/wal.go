@@ -50,7 +50,7 @@ func InitWAL(fileExecutor *fileop.BucketFileOperationner, c config.Config, shard
 		return nil, err
 	}
 
-	walFile, err := loadExistingWALFile(getWalPath(c, shardIndex), c, shardIndex)
+	walFile, err := loadExistingWALFile(getWalPath(c, shardIndex), c, shardIndex, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -86,14 +86,17 @@ func (w *WAL) GetArchiveEventChan() chan string {
 	return w.walFileArchiveEvent
 }
 
-func loadExistingWALFile(walFilePath string, config config.Config, shardIndex int) (*File, error) {
+func loadExistingWALFile(walFilePath string, config config.Config, shardIndex int, logger *zap.Logger) (*File, error) {
 	if _, err := os.Stat(walFilePath); os.IsNotExist(err) {
 		return nil, nil
 	}
 
 	walFile, err := ReadFileFromPath(walFilePath)
 	if err != nil {
-		return nil, err
+		if err != ErrBadWalFileCrcCommand {
+			return nil, err
+		}
+		logger.Warn("load existing wal file. Some commands are corrupted", zap.Error(err), zap.String("wal-path", walFilePath))
 	}
 	if walFile.shardCount != uint64(config.ShardCount) {
 		return nil, fmt.Errorf("try to flush wal with a different shard count")
