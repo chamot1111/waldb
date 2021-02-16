@@ -220,6 +220,7 @@ func (wf *File) readHeader(reader *bufio.Reader) error {
 
 func (wf *File) writeCmdToFile(buffer *bufio.Writer, cmd *walCmd) (int, error) {
 	n := 0
+	var crc uint8 = 128
 	key := cmd.cf.Key()
 	if len(key) > 255 {
 		return 0, fmt.Errorf("key is more than 255 chars: %s", key)
@@ -227,14 +228,19 @@ func (wf *File) writeCmdToFile(buffer *bufio.Writer, cmd *walCmd) (int, error) {
 	if err := buffer.WriteByte(byte(len(key))); err != nil {
 		return 0, err
 	}
+	crc += byte(len(key))
 	n = n + 1
 	if _, err := buffer.WriteString(key); err != nil {
 		return 0, err
+	}
+	for _, v := range []byte(key) {
+		crc += v
 	}
 	n = n + len(key)
 	if err := buffer.WriteByte(byte(cmd.cmd)); err != nil {
 		return 0, err
 	}
+	crc += byte(cmd.cmd)
 	n = n + 1
 	var lenBuffer [8]byte
 	if cmd.buffer != nil {
@@ -248,6 +254,10 @@ func (wf *File) writeCmdToFile(buffer *bufio.Writer, cmd *walCmd) (int, error) {
 	}
 	n = n + 8
 
+	for _, v := range lenBuffer {
+		crc += v
+	}
+
 	if cmd.buffer != nil {
 		cmd.buffer.ResetRead()
 		n = n + cmd.buffer.Len() // must be call before write
@@ -256,6 +266,9 @@ func (wf *File) writeCmdToFile(buffer *bufio.Writer, cmd *walCmd) (int, error) {
 			return 0, err
 		}
 		cmd.buffer.ResetRead()
+		for _, v := range cmd.buffer.Bytes() {
+			crc += v
+		}
 	}
 
 	var offset [8]byte
@@ -265,6 +278,10 @@ func (wf *File) writeCmdToFile(buffer *bufio.Writer, cmd *walCmd) (int, error) {
 	}
 	n = n + 8
 
+	for _, v := range offset {
+		crc += v
+	}
+
 	var fileSize [8]byte
 	binary.BigEndian.PutUint64(fileSize[:], uint64(cmd.fileSize))
 	if _, err := buffer.Write(fileSize[:]); err != nil {
@@ -272,7 +289,18 @@ func (wf *File) writeCmdToFile(buffer *bufio.Writer, cmd *walCmd) (int, error) {
 	}
 	n = n + 8
 
+	for _, v := range fileSize {
+		crc += v
+	}
+
 	if err := buffer.WriteByte(byte(cmd.retryCount)); err != nil {
+		return 0, err
+	}
+	n = n + 1
+
+	crc += byte(cmd.retryCount)
+
+	if err := buffer.WriteByte(byte(crc)); err != nil {
 		return 0, err
 	}
 	n = n + 1
@@ -322,17 +350,23 @@ func ReadFileFromPath(path string) (*File, error) {
 }
 
 func readCmdFromReader(reader *bufio.Reader, curIndex int) (*walCmd, error) {
-
+	var crc uint8 = 128
 	lenKey, err := reader.ReadByte()
 	if err != nil {
 		return nil, err
 	}
+
+	crc += lenKey
 
 	var bKeyBuf [255]byte
 	keyBuf := bKeyBuf[0:lenKey]
 	_, err = reader.Read(keyBuf)
 	if err != nil {
 		return nil, err
+	}
+
+	for _, v := range keyBuf {
+		crc += v
 	}
 
 	cf, err := config.ParseContainerFileKey(string(keyBuf))
@@ -344,6 +378,7 @@ func readCmdFromReader(reader *bufio.Reader, curIndex int) (*walCmd, error) {
 	if err != nil {
 		return nil, err
 	}
+	crc += cmd
 
 	var bLenBufferBuf [8]byte
 	_, err = reader.Read(bLenBufferBuf[:])
@@ -351,6 +386,9 @@ func readCmdFromReader(reader *bufio.Reader, curIndex int) (*walCmd, error) {
 		return nil, err
 	}
 	lenBuffer := binary.BigEndian.Uint64(bLenBufferBuf[:])
+	for _, v := range bLenBufferBuf {
+		crc += v
+	}
 
 	var dataBuffer *wutils.Buffer
 	if lenBuffer > 0 {
@@ -359,6 +397,9 @@ func readCmdFromReader(reader *bufio.Reader, curIndex int) (*walCmd, error) {
 		_, err = reader.Read(dataBuffer.Bytes())
 		if err != nil {
 			return nil, err
+		}
+		for _, v := range dataBuffer.Bytes() {
+			crc += v
 		}
 	}
 
@@ -369,16 +410,32 @@ func readCmdFromReader(reader *bufio.Reader, curIndex int) (*walCmd, error) {
 	}
 
 	offset := binary.BigEndian.Uint64(bOffset[:])
+	for _, v := range bOffset {
+		crc += v
+	}
 
 	var bFileSize [8]byte
 	_, err = reader.Read(bFileSize[:])
 	if err != nil {
 		return nil, err
 	}
+	for _, v := range bFileSize {
+		crc += v
+	}
 
 	retryCount, err := reader.ReadByte()
 	if err != nil {
 		return nil, err
+	}
+	crc += retryCount
+
+	readCrd, err := reader.ReadByte()
+	if err != nil {
+		return nil, err
+	}
+
+	if crc != readCrd {
+		return nil, fmt.Errorf("bad CRC for command")
 	}
 
 	fileSize := binary.BigEndian.Uint64(bFileSize[:])
