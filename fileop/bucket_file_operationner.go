@@ -84,12 +84,17 @@ func (bfo *BucketFileOperationner) removeFileData(key string) error {
 	return nil
 }
 
-func (bfo *BucketFileOperationner) getFileDataAndTouch(cf config.ContainerFile) (*fileData, error) {
+func (bfo *BucketFileOperationner) getFileDataAndTouch(cf config.ContainerFile, intentWrite bool) (*fileData, error) {
 	key := cf.Key()
 	fd, exists := bfo.fileDataMap[key]
 	if !exists {
 		path := cf.PathToFile(bfo.config)
 		folder := cf.BaseFolder(bfo.config)
+		if !intentWrite {
+			if _, err := os.Stat(path); os.IsNotExist(err) {
+				return nil, nil
+			}
+		}
 		os.MkdirAll(folder, 0744)
 		file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0744)
 		if err != nil {
@@ -109,9 +114,9 @@ func (bfo *BucketFileOperationner) getFileDataAndTouch(cf config.ContainerFile) 
 	return fd, nil
 }
 
-func (bfo *BucketFileOperationner) getFileDataLimitAndTouch(cf config.ContainerFile) (*fileData, error) {
+func (bfo *BucketFileOperationner) getFileDataLimitAndTouch(cf config.ContainerFile, intentWrite bool) (*fileData, error) {
 	bfo.limitOpenFiles()
-	res, err := bfo.getFileDataAndTouch(cf)
+	res, err := bfo.getFileDataAndTouch(cf, intentWrite)
 	return res, err
 }
 
@@ -129,7 +134,7 @@ func (bfo *BucketFileOperationner) Close() {
 
 // WriteAt write to a file
 func (bfo *BucketFileOperationner) WriteAt(cf *config.ContainerFile, buf []byte, offset int64, fileSize int64) error {
-	fileData, err := bfo.getFileDataLimitAndTouch(*cf)
+	fileData, err := bfo.getFileDataLimitAndTouch(*cf, true)
 	if err != nil {
 		return err
 	}
@@ -138,7 +143,7 @@ func (bfo *BucketFileOperationner) WriteAt(cf *config.ContainerFile, buf []byte,
 
 // Truncate truncate file
 func (bfo *BucketFileOperationner) Truncate(cf *config.ContainerFile, offset int64) error {
-	fileData, err := bfo.getFileDataLimitAndTouch(*cf)
+	fileData, err := bfo.getFileDataLimitAndTouch(*cf, true)
 	if err != nil {
 		return err
 	}
@@ -147,7 +152,7 @@ func (bfo *BucketFileOperationner) Truncate(cf *config.ContainerFile, offset int
 
 // Archive file
 func (bfo *BucketFileOperationner) Archive(cf *config.ContainerFile, shardIndex, walIndex, operationIndex int, deleteActiveFile bool) (deletedFile bool, err error) {
-	fileData, err := bfo.getFileDataLimitAndTouch(*cf)
+	fileData, err := bfo.getFileDataLimitAndTouch(*cf, true)
 	if err != nil {
 		return false, err
 	}
@@ -187,7 +192,7 @@ func (bfo *BucketFileOperationner) ApplyBatchOp(files []*FileBatchOp) ErrorFOPLi
 		if finishFd != nil {
 			bfo.removeFileData(finishFd.key)
 		}
-		fd, err := bfo.getFileDataLimitAndTouch(f.ContainerFile)
+		fd, err := bfo.getFileDataLimitAndTouch(f.ContainerFile, true)
 		if err != nil {
 			errorChan <- ErrorFOP{
 				Err:            err,
@@ -358,7 +363,7 @@ func loopOpApplyer(config config.Config, jobQueue chan fileBatchOpWithFile, erro
 
 // Sync file
 func (bfo *BucketFileOperationner) Sync(cf *config.ContainerFile) error {
-	fileData, err := bfo.getFileDataLimitAndTouch(*cf)
+	fileData, err := bfo.getFileDataLimitAndTouch(*cf, true)
 	if err != nil {
 		return err
 	}
@@ -369,9 +374,12 @@ func (bfo *BucketFileOperationner) Sync(cf *config.ContainerFile) error {
 // GetFileBuffer get the file content
 func (bfo *BucketFileOperationner) GetFileBuffer(cf *config.ContainerFile, fileBuf *wutils.Buffer) error {
 	fileBuf.Reset()
-	fileData, err := bfo.getFileDataLimitAndTouch(*cf)
+	fileData, err := bfo.getFileDataLimitAndTouch(*cf, false)
 	if err != nil {
 		return err
+	}
+	if fileData == nil {
+		return nil
 	}
 
 	_, err = fileData.file.Seek(0, 0)
