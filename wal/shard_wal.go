@@ -54,7 +54,7 @@ func InitShardWAL(config config.Config, logger *zap.Logger) (*ShardWAL, error) {
 }
 
 // ExecRsyncCommand will clean up, pause, execute the rsync command and resume
-func (swa *ShardWAL) ExecRsyncCommand() ([]byte, error) {
+func (swa *ShardWAL) ExecRsyncCommand(params map[string][]string) ([]byte, error) {
 	if swa.config.RsyncCommand == "" {
 		swa.logger.Info("No rsync command")
 		return nil, nil
@@ -80,6 +80,17 @@ func (swa *ShardWAL) ExecRsyncCommand() ([]byte, error) {
 	cmdExpanded = strings.ReplaceAll(cmdExpanded, "%arc", swa.config.ArchiveFolder)
 	cmdExpanded = strings.ReplaceAll(cmdExpanded, "%walact", swa.config.WALFolder)
 	cmdExpanded = strings.ReplaceAll(cmdExpanded, "%walarc", swa.config.WalArchiveFolder)
+
+	for k, v := range params {
+		s := ""
+		for ii, vv := range v {
+			s += vv
+			if ii < len(v)-1 {
+				s += ","
+			}
+		}
+		cmdExpanded = strings.ReplaceAll(cmdExpanded, "%"+k, s)
+	}
 
 	cmd := exec.Command("/bin/sh", "-c", cmdExpanded)
 	swa.logger.Info("Running rsync command and waiting for it to finish ...", zap.String("cmd", swa.config.RsyncCommand))
