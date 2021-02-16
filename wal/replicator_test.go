@@ -81,7 +81,7 @@ func TestRsyncCmd(t *testing.T) {
 
 	conf := config.InitDefaultTestConfig()
 	conf.ShardCount = 100
-	conf.RsyncCommand = "echo \"%act %arc %walact %walarc\" > data-test/rsyn-test.txt"
+	conf.RsyncCommand = "echo \"%act %arc %walact %walarc %cust\" > data-test/rsyn-test.txt"
 
 	os.RemoveAll("data-test")
 
@@ -90,7 +90,7 @@ func TestRsyncCmd(t *testing.T) {
 		t.Fatalf("%v", err)
 	}
 
-	_, err = shardWal.ExecRsyncCommand(map[string][]string{})
+	_, err = shardWal.ExecRsyncCommand(map[string][]string{"cust": {"test"}})
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -101,7 +101,7 @@ func TestRsyncCmd(t *testing.T) {
 	}
 	content := strings.TrimSuffix(string(contentB), "\n")
 
-	expectedContent := conf.ActiveFolder + " " + conf.ArchiveFolder + " " + conf.WALFolder + " " + conf.WalArchiveFolder
+	expectedContent := conf.ActiveFolder + " " + conf.ArchiveFolder + " " + conf.WALFolder + " " + conf.WalArchiveFolder + " test"
 	if content != expectedContent {
 		t.Fatalf("'%s' expected '%s'", content, expectedContent)
 	}
