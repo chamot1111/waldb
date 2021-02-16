@@ -247,6 +247,14 @@ func ArchiveAtomicOp(file *os.File, activePath, archivePath string, deleteActive
 	destPath := archivePath
 	if !deleteInsteadOfArchiving {
 		if _, err := os.Stat(destPath); os.IsNotExist(err) {
+			n, err := file.Seek(0, 2)
+			if err != nil {
+				return false, err
+			}
+			if n <= headerSize {
+				goto delete
+			}
+
 			destPathTmp := destPath + ".tmp"
 			if err := os.MkdirAll(path.Dir(destPathTmp), 0744); err != nil {
 				return false, err
@@ -255,10 +263,7 @@ func ArchiveAtomicOp(file *os.File, activePath, archivePath string, deleteActive
 			if err != nil {
 				return false, fmt.Errorf("could not open file for archiving %s: %w", destPath, err)
 			}
-			_, err = file.Seek(0, 0)
-			if err != nil {
-				return false, err
-			}
+
 			_, err = io.Copy(destFileTmp, file)
 			if err != nil {
 				return false, err
@@ -273,6 +278,8 @@ func ArchiveAtomicOp(file *os.File, activePath, archivePath string, deleteActive
 			}
 		}
 	}
+
+delete:
 
 	if deleteActiveFile {
 		if err := file.Close(); err != nil {
