@@ -373,7 +373,6 @@ func (bfo *BucketFileOperationner) Sync(cf *config.ContainerFile) error {
 
 // GetFileBuffer get the file content
 func (bfo *BucketFileOperationner) GetFileBuffer(cf *config.ContainerFile, fileBuf *wutils.Buffer) error {
-	fileBuf.Reset()
 	fileData, err := bfo.getFileDataLimitAndTouch(*cf, false)
 	if err != nil {
 		return err
@@ -381,13 +380,18 @@ func (bfo *BucketFileOperationner) GetFileBuffer(cf *config.ContainerFile, fileB
 	if fileData == nil {
 		return nil
 	}
+	return GetFileBufferFromFile(fileData.file, fileBuf)
+}
 
-	_, err = fileData.file.Seek(0, 0)
+// GetFileBufferFromFile get the file content
+func GetFileBufferFromFile(file *os.File, fileBuf *wutils.Buffer) error {
+	fileBuf.Reset()
+	_, err := file.Seek(0, 0)
 	if err != nil {
 		return err
 	}
 	var fileSizeB [8]byte
-	n, err := io.ReadFull(fileData.file, fileSizeB[:])
+	n, err := io.ReadFull(file, fileSizeB[:])
 	if n == 0 && err == io.EOF {
 		return nil
 	}
@@ -396,7 +400,7 @@ func (bfo *BucketFileOperationner) GetFileBuffer(cf *config.ContainerFile, fileB
 	}
 	fileSize := binary.BigEndian.Uint64(fileSizeB[:])
 
-	_, err = fileBuf.ReadFrom(fileData.file)
+	_, err = fileBuf.ReadFrom(file)
 	if err != nil {
 		return err
 	}
