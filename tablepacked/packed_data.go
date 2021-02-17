@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"sync"
 
 	"github.com/chamot1111/waldb/config"
@@ -18,6 +19,22 @@ type ColumnData struct {
 	// else the value can be used for value encoding (uint, int, bool, enum, float)
 	EncodedRawValue uint64
 	Buffer          []byte
+}
+
+// DebugString create a debug string
+func (cd ColumnData) DebugString(d ColumnDescriptor) string {
+	switch d.Type {
+	case Tuint:
+		return strconv.Itoa(int(cd.EncodedRawValue))
+	case Tenum:
+		return d.EnumValues[int(cd.EncodedRawValue)]
+	case Tstring:
+		if cd.Buffer != nil {
+			return string(cd.Buffer)
+		}
+		return "null"
+	}
+	return "<error>"
 }
 
 // RowData row data
@@ -194,12 +211,8 @@ func copyFromFileToByteBuffer(file *os.File, buffer *wutils.Buffer) error {
 
 // ReadAllRowDataFromFile append row data
 func ReadAllRowDataFromFile(cf config.ContainerFile, wal *wal.WAL, rowDataPool *sync.Pool, bufferPool *sync.Pool) (*TableData, error) {
-	var cCRC uint8
-	var table *TableData = &TableData{}
-	table.Data = table.Data[0:0]
-	SaneOffset := 0
-
 	fileBuf := bufferPool.Get().(*wutils.Buffer)
+	defer bufferPool.Put(fileBuf)
 	fileBuf.Reset()
 
 	err := wal.GetFileBuffer(cf, fileBuf)
@@ -208,13 +221,44 @@ func ReadAllRowDataFromFile(cf config.ContainerFile, wal *wal.WAL, rowDataPool *
 		return nil, err
 	}
 
+	return ReadAllRowDataFromFileBuffer(cf, fileBuf, rowDataPool)
+}
+
+// NewRowDataPool init row data pool
+func NewRowDataPool() *sync.Pool {
+	return &sync.Pool{
+		New: func() interface{} {
+			return &RowData{
+				Data: make([]ColumnData, 0, 10),
+			}
+		},
+	}
+}
+
+// NewBufPool init buffer data pool
+func NewBufPool() *sync.Pool {
+	return &sync.Pool{
+		New: func() interface{} {
+			return new(wutils.Buffer)
+		},
+	}
+}
+
+// ReadAllRowDataFromFileBuffer append row data
+func ReadAllRowDataFromFileBuffer(cf config.ContainerFile, fileBuf *wutils.Buffer, rowDataPool *sync.Pool) (*TableData, error) {
+	var cCRC uint8
+	var table *TableData = &TableData{}
+	table.Data = table.Data[0:0]
+	SaneOffset := 0
+
+	fileBuf.ResetRead()
+
 	for true {
 		isEOF := false
 		lenBufferBytes := fileBuf.Next(2)
 		if len(lenBufferBytes) == 0 {
 			break
 		} else if len(lenBufferBytes) == 1 {
-			bufferPool.Put(fileBuf)
 			return table, fmt.Errorf("Could not read lenBufferBytes")
 		}
 
@@ -223,7 +267,6 @@ func ReadAllRowDataFromFile(cf config.ContainerFile, wal *wal.WAL, rowDataPool *
 		rCRC, err := fileBuf.ReadByte()
 		if err != nil {
 			if err != io.EOF {
-				bufferPool.Put(fileBuf)
 				return table, err
 			}
 			isEOF = true
@@ -232,7 +275,6 @@ func ReadAllRowDataFromFile(cf config.ContainerFile, wal *wal.WAL, rowDataPool *
 		cCRC = crcForBuffer(internalBuffer)
 
 		if cCRC != rCRC {
-			bufferPool.Put(fileBuf)
 			return table, &ErrBadEndingCRC{
 				SaneOffset: SaneOffset,
 			}
@@ -242,7 +284,6 @@ func ReadAllRowDataFromFile(cf config.ContainerFile, wal *wal.WAL, rowDataPool *
 
 		err = ReadFromBuffer(internalBuffer, rd)
 		if err != nil {
-			bufferPool.Put(fileBuf)
 			return table, err
 		}
 
@@ -253,8 +294,6 @@ func ReadAllRowDataFromFile(cf config.ContainerFile, wal *wal.WAL, rowDataPool *
 			break
 		}
 	}
-
-	bufferPool.Put(fileBuf)
 	return table, nil
 }
 

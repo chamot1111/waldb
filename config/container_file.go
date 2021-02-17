@@ -40,10 +40,15 @@ func (cf ContainerFile) Key() string {
 	return strings.Join([]string{cf.Container, cf.Bucket, cf.SubBucket, cf.TableName}, ":")
 }
 
-// ArchivePath path to the arvhive file
+// ArchivePath path to the archive folder
 func (cf ContainerFile) ArchivePath(archiveFolder string, shardIndex, walIndex, operationIndex int) string {
 	v := fmt.Sprintf("%s-%d-%d-%d", cf.TableName, shardIndex, walIndex, operationIndex)
 	return path.Join(archiveFolder, cf.Container, cf.Bucket, cf.SubBucket, v)
+}
+
+// ArchiveFolder path to the archive file
+func (cf ContainerFile) ArchiveFolder(archiveFolder string) string {
+	return path.Join(archiveFolder, cf.Container, cf.Bucket, cf.SubBucket)
 }
 
 // ParseContainerFileKey parse a container file from string

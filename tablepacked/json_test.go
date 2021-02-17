@@ -2,10 +2,7 @@ package tablepacked
 
 import (
 	"encoding/json"
-	"sync"
 	"testing"
-
-	"github.com/chamot1111/waldb/wutils"
 )
 
 type c = ColumnDescriptor
@@ -59,7 +56,7 @@ func parseInteraction(buf []byte) ([]interaction, error) {
 }
 
 func TestEmptyJSON(t *testing.T) {
-	p := createBufPool()
+	p := NewBufPool()
 	rowsData := make([]*RowData, 0)
 	buf, err := RowsDataToJSON(rowsData, InteractionTable, p)
 	bytes := buf.Bytes()
@@ -77,7 +74,7 @@ func TestEmptyJSON(t *testing.T) {
 }
 
 func Test1InterJSON(t *testing.T) {
-	p := createBufPool()
+	p := NewBufPool()
 	rowsData := make([]*RowData, 0)
 	v := interactionRnd()
 	rowsData = append(rowsData, &v)
@@ -100,7 +97,7 @@ func Test1InterJSON(t *testing.T) {
 }
 
 func TestNInterJSON(t *testing.T) {
-	p := createBufPool()
+	p := NewBufPool()
 	const interCount = 100
 	rowsData := make([]*RowData, 0)
 	for i := 0; i < interCount; i++ {
@@ -127,17 +124,9 @@ func TestNInterJSON(t *testing.T) {
 	}
 }
 
-func createBufPool() *sync.Pool {
-	return &sync.Pool{
-		New: func() interface{} {
-			return new(wutils.Buffer)
-		},
-	}
-}
-
 func BenchmarkNInterJSON(b *testing.B) {
 	//b.SetParallelism(100)
-	p := createBufPool()
+	p := NewBufPool()
 
 	const interCount = 1000
 

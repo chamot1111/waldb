@@ -407,9 +407,13 @@ func (bfo *BucketFileOperationner) GetFileBuffer(cf *config.ContainerFile, fileB
 
 // CurFileSize get cur file size
 func (bfo *BucketFileOperationner) CurFileSize(cf *config.ContainerFile) (int64, error) {
-	fileData, err := bfo.getFileDataLimitAndTouch(*cf)
+	fileData, err := bfo.getFileDataLimitAndTouch(*cf, false)
 	if err != nil {
 		return 0, err
+	}
+
+	if fileData == nil {
+		return 0, nil
 	}
 
 	n, err := fileData.file.Seek(0, 2)

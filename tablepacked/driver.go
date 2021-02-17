@@ -5,7 +5,6 @@ import (
 
 	"github.com/chamot1111/waldb/config"
 	"github.com/chamot1111/waldb/wal"
-	"github.com/chamot1111/waldb/wutils"
 	"go.uber.org/zap"
 )
 
@@ -26,21 +25,11 @@ func InitDriver(conf config.Config, logger *zap.Logger) (*Driver, error) {
 		return nil, err
 	}
 	return &Driver{
-		conf:     conf,
-		logger:   logger,
-		shardWal: shardWal,
-		rowDataPool: &sync.Pool{
-			New: func() interface{} {
-				return &RowData{
-					Data: make([]ColumnData, 0, 10),
-				}
-			},
-		},
-		bufferPool: &sync.Pool{
-			New: func() interface{} {
-				return new(wutils.Buffer)
-			},
-		},
+		conf:        conf,
+		logger:      logger,
+		shardWal:    shardWal,
+		rowDataPool: NewRowDataPool(),
+		bufferPool:  NewBufPool(),
 	}, nil
 }
 
