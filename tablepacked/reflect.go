@@ -121,7 +121,34 @@ func StructToRow(s interface{}, row *RowData, table Table) error {
 				}
 				row.Data[ic].EncodedRawValue = uint64(encodedRawValue)
 			default:
-				return fmt.Errorf("could not set %s with field kind: %s", c.Name, fieldKind.String())
+				if !reflect.PtrTo(fieldType.Type).Implements(_valuerInterface) {
+					return fmt.Errorf("could not set %s with field kind: %s", c.Name, fieldKind.String())
+				}
+				fieldValue := v.FieldByName(c.Name)
+				valuerValue := fieldValue.Interface().(driver.Valuer)
+				vv, err := valuerValue.Value()
+				if err != nil {
+					return fmt.Errorf("fail to get value from Valuer: %s", c.Name)
+				}
+				switch s := vv.(type) {
+				case string:
+					stringVal := vv.(string)
+					encodedRawValue := -1
+					for ie, ev := range c.EnumValues {
+						if ev == stringVal {
+							encodedRawValue = ie
+							break
+						}
+					}
+					if encodedRawValue < 0 {
+						return fmt.Errorf("could not get enum values '%s' for field '%s'", stringVal, c.Name)
+					}
+					row.Data[ic].EncodedRawValue = uint64(encodedRawValue)
+				case nil:
+					row.Data[ic] = NewNullColumnData()
+				default:
+					return fmt.Errorf("value from Valuer is not comatible with int: %v", s)
+				}
 			}
 		case Tstring:
 			switch fieldKind {
@@ -129,10 +156,30 @@ func StructToRow(s interface{}, row *RowData, table Table) error {
 				fieldValue := v.FieldByName(c.Name)
 				stringVal := fieldValue.String()
 				row.Data[ic].EncodedRawValue = uint64(len(stringVal))
-				row.Data[ic].Buffer = []byte(stringVal)
+				row.Data[ic].Buffer = make([]byte, len(stringVal))
+				copy(row.Data[ic].Buffer, stringVal)
 			}
 		default:
-			return fmt.Errorf("undefined column %s type: %d", c.Name, c.Type)
+			if !reflect.PtrTo(fieldType.Type).Implements(_valuerInterface) {
+				return fmt.Errorf("undefined column %s type: %d", c.Name, c.Type)
+			}
+			fieldValue := v.FieldByName(c.Name)
+			valuerValue := fieldValue.Interface().(driver.Valuer)
+			vv, err := valuerValue.Value()
+			if err != nil {
+				return fmt.Errorf("fail to get value from Valuer: %s", c.Name)
+			}
+			switch s := vv.(type) {
+			case string:
+				stringVal := vv.(string)
+				row.Data[ic].EncodedRawValue = uint64(len(stringVal))
+				row.Data[ic].Buffer = make([]byte, len(stringVal))
+				copy(row.Data[ic].Buffer, stringVal)
+			case nil:
+				row.Data[ic] = NewNullColumnData()
+			default:
+				return fmt.Errorf("value from Valuer is not comatible with int: %v", s)
+			}
 		}
 	}
 	return nil
@@ -214,13 +261,33 @@ func RowToStruct(dst interface{}, row *RowData, table Table) error {
 				fieldValue := v.FieldByName(c.Name)
 				fieldValue.SetString(c.EnumValues[int(rc.EncodedRawValue)])
 			default:
-				return fmt.Errorf("could not set %s with field kind: %s", c.Name, fieldKind.String())
+				if !reflect.PtrTo(fieldType.Type).Implements(_scannerInterface) {
+					return fmt.Errorf("could not set %s with field kind: %s", c.Name, fieldKind.String())
+				}
+				fieldValue := v.FieldByName(c.Name)
+				scannableValue := fieldValue.Addr().Interface().(sql.Scanner)
+				if rc.IsNull() {
+					scannableValue.Scan(nil)
+				} else {
+					scannableValue.Scan(rc.EncodedRawValue)
+				}
 			}
 		case Tstring:
 			switch fieldKind {
 			case reflect.String:
 				fieldValue := v.FieldByName(c.Name)
 				fieldValue.SetString(string(rc.Buffer))
+			default:
+				if !reflect.PtrTo(fieldType.Type).Implements(_scannerInterface) {
+					return fmt.Errorf("could not set %s with field kind: %s", c.Name, fieldKind.String())
+				}
+				fieldValue := v.FieldByName(c.Name)
+				scannableValue := fieldValue.Addr().Interface().(sql.Scanner)
+				if rc.IsNull() {
+					scannableValue.Scan(nil)
+				} else {
+					scannableValue.Scan(rc.EncodedRawValue)
+				}
 			}
 		default:
 			return fmt.Errorf("undefined column %s type: %d", c.Name, c.Type)
