@@ -22,6 +22,8 @@ func StructToRow(s interface{}, row *RowData, table Table) error {
 
 	if cap(row.Data) < len(table.Columns) {
 		row.Data = make([]ColumnData, len(table.Columns))
+	} else {
+		row.Data = row.Data[0:len(table.Columns)]
 	}
 
 	typeOfS := v.Type()
