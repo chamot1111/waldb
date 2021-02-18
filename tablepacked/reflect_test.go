@@ -1,6 +1,7 @@
 package tablepacked
 
 import (
+	"database/sql"
 	"strconv"
 	"testing"
 )
@@ -11,6 +12,7 @@ var reflectTableTest = Table{
 		{Name: "TTString", Type: Tstring},
 		{Name: "TTEnumInt", Type: Tenum, EnumValues: []string{"0", "1"}},
 		{Name: "TTEnumString", Type: Tenum, EnumValues: []string{"0", "1"}},
+		{Name: "TTNullInt", Type: Tuint},
 		{Name: "TTInt", Type: Tuint},
 		{Name: "TTUint", Type: Tuint},
 	},
@@ -20,6 +22,7 @@ type reflectTest struct {
 	TTString     string
 	TTEnumInt    int
 	TTEnumString string
+	TTNullInt    sql.NullInt64
 	TTInt        int
 	TTUint       uint
 }
@@ -29,6 +32,7 @@ func TestStructToRow(t *testing.T) {
 		TTString:     "1",
 		TTEnumInt:    1,
 		TTEnumString: "1",
+		TTNullInt:    sql.NullInt64{Int64: 1, Valid: true},
 		TTInt:        1,
 		TTUint:       1,
 	}
@@ -46,6 +50,7 @@ func TestRowToStruct(t *testing.T) {
 		TTString:     "1",
 		TTEnumInt:    1,
 		TTEnumString: "1",
+		TTNullInt:    sql.NullInt64{Int64: 1, Valid: true},
 		TTInt:        1,
 		TTUint:       1,
 	}
@@ -71,6 +76,7 @@ func equals(rt *reflectTest, row *RowData) bool {
 	return !(string(row.Data[0].Buffer) != rt.TTString ||
 		int(row.Data[1].EncodedRawValue) != rt.TTEnumInt ||
 		int(row.Data[2].EncodedRawValue) != TTEnumStringInt ||
-		int(row.Data[3].EncodedRawValue) != rt.TTInt ||
-		uint(row.Data[4].EncodedRawValue) != rt.TTUint)
+		int(row.Data[3].EncodedRawValue) != int(rt.TTNullInt.Int64) ||
+		int(row.Data[4].EncodedRawValue) != rt.TTInt ||
+		uint(row.Data[5].EncodedRawValue) != rt.TTUint)
 }

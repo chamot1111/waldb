@@ -1,9 +1,14 @@
 package tablepacked
 
 import (
+	"database/sql"
+	"database/sql/driver"
 	"fmt"
 	"reflect"
 )
+
+var _scannerInterface = reflect.TypeOf((*sql.Scanner)(nil)).Elem()
+var _valuerInterface = reflect.TypeOf((*driver.Valuer)(nil)).Elem()
 
 // StructToRow take a struct and fill the row data equivalent
 func StructToRow(s interface{}, row *RowData, table Table) error {
@@ -60,7 +65,23 @@ func StructToRow(s interface{}, row *RowData, table Table) error {
 				}
 				row.Data[ic].EncodedRawValue = uint64(intVal)
 			default:
-				return fmt.Errorf("could not set %s with field kind: %s", c.Name, fieldKind.String())
+				if !reflect.PtrTo(fieldType.Type).Implements(_valuerInterface) {
+					return fmt.Errorf("could not set %s with field kind: %s", c.Name, fieldKind.String())
+				}
+				fieldValue := v.FieldByName(c.Name)
+				valuerValue := fieldValue.Interface().(driver.Valuer)
+				vv, err := valuerValue.Value()
+				if err != nil {
+					return fmt.Errorf("fail to get value from Valuer: %s", c.Name)
+				}
+				switch s := vv.(type) {
+				case int64:
+					row.Data[ic].EncodedRawValue = uint64(vv.(int64))
+				case nil:
+					row.Data[ic] = NewNullColumnData()
+				default:
+					return fmt.Errorf("value from Valuer is not comatible with int: %v", s)
+				}
 			}
 
 		case Tenum:
@@ -162,7 +183,16 @@ func RowToStruct(dst interface{}, row *RowData, table Table) error {
 				fieldValue := v.FieldByName(c.Name)
 				fieldValue.SetUint(rc.EncodedRawValue)
 			default:
-				return fmt.Errorf("could not set %s with field kind: %s", c.Name, fieldKind.String())
+				if !reflect.PtrTo(fieldType.Type).Implements(_scannerInterface) {
+					return fmt.Errorf("could not set %s with field kind: %s", c.Name, fieldKind.String())
+				}
+				fieldValue := v.FieldByName(c.Name)
+				scannableValue := fieldValue.Addr().Interface().(sql.Scanner)
+				if rc.IsNull() {
+					scannableValue.Scan(nil)
+				} else {
+					scannableValue.Scan(rc.EncodedRawValue)
+				}
 			}
 
 		case Tenum:

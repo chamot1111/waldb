@@ -21,6 +21,21 @@ type ColumnData struct {
 	Buffer          []byte
 }
 
+var emptyBuffer = [0]byte{}
+
+// NewNullColumnData create null ColumnData
+func NewNullColumnData() ColumnData {
+	return ColumnData{
+		EncodedRawValue: 0,
+		Buffer:          emptyBuffer[:],
+	}
+}
+
+// IsNull is null ColumnData
+func (cd ColumnData) IsNull() bool {
+	return cd.EncodedRawValue == 0 && cd.Buffer != nil && len(cd.Buffer) == 0
+}
+
 // DebugString create a debug string
 func (cd ColumnData) DebugString(d ColumnDescriptor) string {
 	switch d.Type {
