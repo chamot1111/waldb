@@ -20,13 +20,20 @@ type shardWALRessource struct {
 // ShardWAL is a shard of wal to maximise cpu bound operation and
 // and spread checpoint operations
 type ShardWAL struct {
-	wals   []*shardWALRessource
-	config config.Config
-	logger *zap.Logger
+	wals                        []*shardWALRessource
+	config                      config.Config
+	logger                      *zap.Logger
+	currentCheckpointShardIndex int32
 }
 
 // InitShardWAL init a shard wal
 func InitShardWAL(config config.Config, logger *zap.Logger) (*ShardWAL, error) {
+	res := &ShardWAL{
+		config:                      config,
+		logger:                      logger,
+		currentCheckpointShardIndex: -1,
+	}
+
 	wals := make([]*shardWALRessource, 0, config.ShardCount)
 
 	for i := 0; i < config.ShardCount; i++ {
@@ -34,7 +41,7 @@ func InitShardWAL(config config.Config, logger *zap.Logger) (*ShardWAL, error) {
 		if err != nil {
 			return nil, err
 		}
-		wal, err := InitWAL(bfo, config, i, logger)
+		wal, err := InitWAL(bfo, config, i, logger, &res.currentCheckpointShardIndex)
 		if err != nil {
 			return nil, err
 		}
@@ -46,11 +53,8 @@ func InitShardWAL(config config.Config, logger *zap.Logger) (*ShardWAL, error) {
 		wals = append(wals, wr)
 	}
 
-	return &ShardWAL{
-		wals:   wals,
-		config: config,
-		logger: logger,
-	}, nil
+	res.wals = wals
+	return res, nil
 }
 
 // ExecRsyncCommand will clean up, pause, execute the rsync command and resume

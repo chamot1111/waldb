@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/chamot1111/waldb/config"
@@ -32,12 +33,14 @@ type WAL struct {
 
 	shardIndex int
 
+	currentCheckpointShardIndex *int32
+
 	walFile             File
 	walFileArchiveEvent chan string
 }
 
 // InitWAL init the wal file
-func InitWAL(fileExecutor *fileop.BucketFileOperationner, c config.Config, shardIndex int, logger *zap.Logger) (*WAL, error) {
+func InitWAL(fileExecutor *fileop.BucketFileOperationner, c config.Config, shardIndex int, logger *zap.Logger, currentCheckpointShardIndex *int32) (*WAL, error) {
 	if err := os.MkdirAll(c.WalArchiveFolder, 0744); err != nil {
 		return nil, fmt.Errorf("could not create wal archive folder: %w", err)
 	}
@@ -69,15 +72,16 @@ func InitWAL(fileExecutor *fileop.BucketFileOperationner, c config.Config, shard
 	}
 
 	return &WAL{
-		logger:                     logger,
-		fileExecutor:               fileExecutor,
-		walFile:                    *walFile,
-		config:                     c,
-		persistentState:            persistentState,
-		walFileArchiveEvent:        make(chan string, 1000000),
-		lastCheckpointingTime:      time.Now(),
-		shardIndex:                 shardIndex,
-		mergeBarrierOperationIndex: -1,
+		logger:                      logger,
+		fileExecutor:                fileExecutor,
+		walFile:                     *walFile,
+		config:                      c,
+		persistentState:             persistentState,
+		walFileArchiveEvent:         make(chan string, 1000000),
+		lastCheckpointingTime:       time.Now(),
+		shardIndex:                  shardIndex,
+		mergeBarrierOperationIndex:  -1,
+		currentCheckpointShardIndex: currentCheckpointShardIndex,
 	}, nil
 }
 
@@ -356,7 +360,25 @@ func getWalPath(c config.Config, shardIndex int) string {
 }
 
 func (w *WAL) checkpointIfNecessary() error {
-	if w.needCheckpointingSoftLimit() || w.needCheckpointingHardLimit() {
+	doCheckpoint := false
+	if w.needCheckpointingHardLimit() {
+		atomic.CompareAndSwapInt32(w.currentCheckpointShardIndex, -1, int32(w.shardIndex))
+		doCheckpoint = true
+		w.logger.Info("checkpoint hard limit", zap.Int("shard-index", w.shardIndex))
+	} else {
+		if w.needCheckpointingSoftLimit() {
+			if w.currentCheckpointShardIndex == nil {
+				doCheckpoint = true
+			} else {
+				ownedCheckpoint := atomic.CompareAndSwapInt32(w.currentCheckpointShardIndex, -1, int32(w.shardIndex))
+				if ownedCheckpoint {
+					doCheckpoint = true
+				}
+			}
+		}
+	}
+
+	if doCheckpoint {
 		_, err := w.checkPointing()
 		return err
 	}
@@ -398,6 +420,11 @@ func (w *WAL) applying() (errOpsCount int, err error) {
 }
 
 func (w *WAL) checkPointing() (errOpsCount int, err error) {
+	defer func() {
+		if w.currentCheckpointShardIndex != nil {
+			atomic.CompareAndSwapInt32(w.currentCheckpointShardIndex, int32(w.shardIndex), -1)
+		}
+	}()
 	if w.file == nil {
 		return 0, nil
 	}

@@ -38,7 +38,7 @@ func TestWalWriteAndRead(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
-	wal, err := InitWAL(bfo, *sc, 0, logger)
+	wal, err := InitWAL(bfo, *sc, 0, logger, nil)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -124,7 +124,7 @@ func TestSequentialWrite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
-	wal, err := InitWAL(bfo, *sc, 0, logger)
+	wal, err := InitWAL(bfo, *sc, 0, logger, nil)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -263,7 +263,7 @@ func TestFlushExistingWalFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
-	wal, err := InitWAL(bfo, *sc, 0, logger)
+	wal, err := InitWAL(bfo, *sc, 0, logger, nil)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -320,7 +320,7 @@ func BenchmarkReads(b *testing.B) {
 	if err != nil {
 		b.Fatalf("%v", err)
 	}
-	wal, err := InitWAL(bfo, *sc, 0, logger)
+	wal, err := InitWAL(bfo, *sc, 0, logger, nil)
 	if err != nil {
 		b.Fatalf("%v", err)
 	}
@@ -402,7 +402,7 @@ func BenchmarkWrites(b *testing.B) {
 	if err != nil {
 		b.Fatalf("%v", err)
 	}
-	wal, err := InitWAL(bfo, *sc, 0, logger)
+	wal, err := InitWAL(bfo, *sc, 0, logger, nil)
 	if err != nil {
 		b.Fatalf("%v", err)
 	}
