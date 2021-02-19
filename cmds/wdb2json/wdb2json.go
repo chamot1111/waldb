@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/chamot1111/waldb/fileop"
 	"github.com/chamot1111/waldb/tablepacked"
@@ -14,9 +15,11 @@ import (
 
 func main() {
 	var tableDescriptorJSONPath string
+	var headers string
 	var crc bool
 	flag.StringVar(&tableDescriptorJSONPath, "table", "", "path to the json table file descriptor")
 	flag.BoolVar(&crc, "crc", false, "read crc corrupted file")
+	flag.StringVar(&headers, "headers", "", "headers for columns")
 	flag.Parse()
 
 	var tableDescr *tablepacked.Table
@@ -71,11 +74,16 @@ func main() {
 
 			log.Println(buf.String())
 		} else {
+			headerCols := strings.Split(headers, ",")
 			rowsObjects := make([]map[string]string, 0)
 			for _, r := range table.Data {
 				obj := make(map[string]string)
 				for ic, c := range r.Data {
-					obj[strconv.Itoa(ic)] = c.DebugStringRaw()
+					key := strconv.Itoa(ic)
+					if ic < len(headerCols) {
+						key = headerCols[ic]
+					}
+					obj[key] = c.DebugStringRaw()
 				}
 				rowsObjects = append(rowsObjects, obj)
 			}
