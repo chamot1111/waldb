@@ -29,23 +29,23 @@ func (cf ContainerFile) DataSize() int {
 
 // PathToFile path to file
 func (cf ContainerFile) PathToFile(c Config) string {
-	prefix, filename := cf.prefixAndFilename()
+	prefix, filename := cf.PrefixAndFilename()
 	return path.Join(c.ActiveFolder, cf.Container, prefix, filename)
 }
 
 // PathToFileFromFolder path to file
 func (cf ContainerFile) PathToFileFromFolder(folder string) string {
-	prefix, filename := cf.prefixAndFilename()
+	prefix, filename := cf.PrefixAndFilename()
 	return path.Join(folder, cf.Container, prefix, filename)
 }
 
 // BaseFolder to file
 func (cf ContainerFile) BaseFolder(c Config) string {
-	prefix, _ := cf.prefixAndFilename()
+	prefix, _ := cf.PrefixAndFilename()
 	return path.Join(c.ActiveFolder, cf.Container, prefix)
 }
 
-func (cf ContainerFile) prefixAndFilename() (prefix string, filename string) {
+func (cf ContainerFile) PrefixAndFilename() (prefix string, filename string) {
 	prefix = cf.Bucket
 	if len(cf.Bucket) > digitsPrefix {
 		prefix = cf.Bucket[0:digitsPrefix]
@@ -61,14 +61,14 @@ func (cf ContainerFile) Key() string {
 
 // ArchivePath path to the archive folder
 func (cf ContainerFile) ArchivePath(archiveFolder string, shardIndex, walIndex, operationIndex int) string {
-	prefix, filename := cf.prefixAndFilename()
+	prefix, filename := cf.PrefixAndFilename()
 	v := fmt.Sprintf("%s-%d-%d-%d", filename, shardIndex, walIndex, operationIndex)
 	return path.Join(archiveFolder, cf.Container, prefix, cf.SubBucket, v)
 }
 
 // ArchiveFolder path to the archive file
 func (cf ContainerFile) ArchiveFolder(archiveFolder string) string {
-	prefix, _ := cf.prefixAndFilename()
+	prefix, _ := cf.PrefixAndFilename()
 	return path.Join(archiveFolder, cf.Container, prefix)
 }
 
