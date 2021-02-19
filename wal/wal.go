@@ -253,6 +253,9 @@ func (w *WAL) Write(cf config.ContainerFile, fileOffset int64, fileSize int64, b
 			operationIndex: uint32(len(w.walFile.cmdsOrder)),
 		}
 
+		w.fileSize = w.fileSize + cf.DataSize()
+		w.fileSize = w.fileSize + buffer.FullLen()
+
 		if w.file == nil {
 			if err := w.createNewFile(); err != nil {
 				return fmt.Errorf("could not write wal file: %w", err)

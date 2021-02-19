@@ -20,6 +20,11 @@ func NewContainerFileWTableName(container string, bucket string, subBucket strin
 	return ContainerFile{Container: container, Bucket: bucket, SubBucket: subBucket, TableName: table}
 }
 
+// DataSize path to file
+func (cf ContainerFile) DataSize() int {
+	return len(cf.Container) + len(cf.Bucket) + len(cf.SubBucket) + len(cf.TableName)
+}
+
 // PathToFile path to file
 func (cf ContainerFile) PathToFile(c Config) string {
 	return path.Join(c.ActiveFolder, cf.Container, cf.Bucket, cf.SubBucket, cf.TableName)
