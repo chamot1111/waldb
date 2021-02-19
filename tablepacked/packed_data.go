@@ -52,6 +52,14 @@ func (cd ColumnData) DebugString(d ColumnDescriptor) string {
 	return "<error>"
 }
 
+// DebugStringRaw create a debug string
+func (cd ColumnData) DebugStringRaw() string {
+	if cd.Buffer != nil && len(cd.Buffer) > 0 {
+		return string(cd.Buffer)
+	}
+	return strconv.Itoa(int(cd.EncodedRawValue))
+}
+
 // RowData row data
 type RowData struct {
 	Data []ColumnData
@@ -236,7 +244,7 @@ func ReadAllRowDataFromFile(cf config.ContainerFile, wal *wal.WAL, rowDataPool *
 		return nil, err
 	}
 
-	return ReadAllRowDataFromFileBuffer(cf, fileBuf, rowDataPool)
+	return ReadAllRowDataFromFileBuffer(fileBuf, rowDataPool)
 }
 
 // NewRowDataPool init row data pool
@@ -260,7 +268,7 @@ func NewBufPool() *sync.Pool {
 }
 
 // ReadAllRowDataFromFileBuffer append row data
-func ReadAllRowDataFromFileBuffer(cf config.ContainerFile, fileBuf *wutils.Buffer, rowDataPool *sync.Pool) (*TableData, error) {
+func ReadAllRowDataFromFileBuffer(fileBuf *wutils.Buffer, rowDataPool *sync.Pool) (*TableData, error) {
 	var cCRC uint8
 	var table *TableData = &TableData{}
 	table.Data = table.Data[0:0]

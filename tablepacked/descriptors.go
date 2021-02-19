@@ -1,5 +1,10 @@
 package tablepacked
 
+import (
+	"encoding/json"
+	"io/ioutil"
+)
+
 // DataType type of static column
 type DataType uint8
 
@@ -26,4 +31,18 @@ type ColumnDescriptor struct {
 type Table struct {
 	Name    string
 	Columns []ColumnDescriptor
+}
+
+// UnmarshallJSONTableDescriptor unmarshall atable descriptor from a json file
+func UnmarshallJSONTableDescriptor(path string) (*Table, error) {
+	t := &Table{}
+	content, err := ioutil.ReadFile(path)
+	if err != nil {
+		return t, err
+	}
+	err = json.Unmarshal(content, t)
+	if err != nil {
+		return t, err
+	}
+	return t, nil
 }
