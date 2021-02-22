@@ -18,8 +18,10 @@ type shardWALRessource struct {
 	mutex *sync.Mutex
 }
 
-// ArchivedFileFunc func called when a new archived file is created
-type ArchivedFileFunc func(path string)
+// ArchivedFileFuncter func called when a new archived file is created
+type ArchivedFileFuncter interface {
+	Do(path string, file config.ContainerFile)
+}
 
 // ShardWAL is a shard of wal to maximise cpu bound operation and
 // and spread checpoint operations
@@ -28,17 +30,17 @@ type ShardWAL struct {
 	config                      config.Config
 	logger                      *zap.Logger
 	currentCheckpointShardIndex int32
-	archivedFileFunc            ArchivedFileFunc
+	archivedFileFuncter         ArchivedFileFuncter
 	backgroundExclusiveTask     *sync.Mutex
 }
 
 // InitShardWAL init a shard wal
-func InitShardWAL(config config.Config, logger *zap.Logger, archivedFileFunc ArchivedFileFunc) (*ShardWAL, error) {
+func InitShardWAL(config config.Config, logger *zap.Logger, archivedFileFuncter ArchivedFileFuncter) (*ShardWAL, error) {
 	res := &ShardWAL{
 		config:                      config,
 		logger:                      logger,
 		currentCheckpointShardIndex: -1,
-		archivedFileFunc:            archivedFileFunc,
+		archivedFileFuncter:         archivedFileFuncter,
 		backgroundExclusiveTask:     &sync.Mutex{},
 	}
 
@@ -63,7 +65,7 @@ func InitShardWAL(config config.Config, logger *zap.Logger, archivedFileFunc Arc
 
 	res.wals = wals
 	archivedChan := res.getArchiveFileCreatedEventChan()
-	go archivedFileRountine(archivedChan, res.archivedFileFunc, res.backgroundExclusiveTask)
+	go archivedFileRountine(archivedChan, res.archivedFileFuncter, res.backgroundExclusiveTask)
 	return res, nil
 }
 
@@ -180,7 +182,7 @@ func (swa *ShardWAL) GetArchiveEventChan() []chan string {
 	return res
 }
 
-func archivedFileRountine(ch chan string, archivedFileFunc ArchivedFileFunc, mutex *sync.Mutex) {
+func archivedFileRountine(ch chan string, archivedFileFunc ArchivedFileFuncter, mutex *sync.Mutex) {
 	for s := range ch {
 		if archivedFileFunc != nil {
 			archivedFileRountineWithLock(s, archivedFileFunc, mutex)
@@ -188,10 +190,13 @@ func archivedFileRountine(ch chan string, archivedFileFunc ArchivedFileFunc, mut
 	}
 }
 
-func archivedFileRountineWithLock(p string, archivedFileFunc ArchivedFileFunc, mutex *sync.Mutex) {
+func archivedFileRountineWithLock(p string, archivedFileFunc ArchivedFileFuncter, mutex *sync.Mutex) {
 	mutex.Lock()
 	defer mutex.Unlock()
-	archivedFileFunc(p)
+	cf, err := config.ParseContainerFileFromArchivePath(p)
+	if err != nil {
+		archivedFileFunc.Do(p, *cf)
+	}
 }
 
 // getArchiveFileCreatedEventChan when an archive file is created by any wal, the ContainerFile key is send to

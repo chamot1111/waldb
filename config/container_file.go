@@ -62,8 +62,33 @@ func (cf ContainerFile) Key() string {
 // ArchivePath path to the archive folder
 func (cf ContainerFile) ArchivePath(archiveFolder string, shardIndex, walIndex, operationIndex int) string {
 	prefix, filename := cf.PrefixAndFilename()
-	v := fmt.Sprintf("%s-%d-%d-%d", filename, shardIndex, walIndex, operationIndex)
+	v := fmt.Sprintf("%s:%d:%d:%d", filename, shardIndex, walIndex, operationIndex)
 	return path.Join(archiveFolder, cf.Container, prefix, cf.SubBucket, v)
+}
+
+// ParseContainerFileFromArchivePath parse file path
+func ParseContainerFileFromArchivePath(b string) (*ContainerFile, error) {
+	baseName := path.Base(b)
+	removeWalInfo := strings.Split(baseName, ":")
+	if len(removeWalInfo) != 4 {
+		return nil, fmt.Errorf("could not parse wal info from archive name '%s'", string(b))
+	}
+	comps := strings.Split(baseName, "_")
+
+	if len(comps) != 3 {
+		return nil, fmt.Errorf("could not parse container comps '%s'", string(b))
+	}
+	dir := strings.Split(b, string(path.Dir(b)))
+	if len(dir) < 2 {
+		return nil, fmt.Errorf("could not get app container from path '%s'", string(b))
+	}
+	container := dir[len(dir)-2]
+	return &ContainerFile{
+		Container: container,
+		Bucket:    comps[0],
+		SubBucket: comps[1],
+		TableName: comps[2],
+	}, nil
 }
 
 // ArchiveFolder path to the archive file

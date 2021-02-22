@@ -5,6 +5,7 @@ type Config struct {
 	DeleteInsteadOfArchiving bool
 	ActiveFolder             string
 	ArchiveFolder            string
+	SqliteFolder             string
 	WalArchiveFolder         string
 	ReplicationActiveFolder  string
 	ReplicationArchiveFolder string
@@ -22,6 +23,7 @@ func InitDefaultConfig() *Config {
 	return &Config{
 		ActiveFolder:        "data/active",
 		ArchiveFolder:       "data/archive",
+		SqliteFolder:        "data/sqlite-archive",
 		WalArchiveFolder:    "data/wal-archive",
 		ShardCount:          4,
 		MaxFileOpen:         100,
@@ -34,6 +36,7 @@ func InitDefaultConfig() *Config {
 // InitDefaultTestConfig init config for test
 func InitDefaultTestConfig() *Config {
 	return &Config{
+		SqliteFolder:             "data-test/sqlite-archive",
 		ActiveFolder:             "data-test/active",
 		ArchiveFolder:            "data-test/archive",
 		WalArchiveFolder:         "data-test/wal-archive",
