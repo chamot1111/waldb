@@ -20,7 +20,7 @@ type Driver struct {
 
 // InitDriver init packed table dirver
 func InitDriver(conf config.Config, logger *zap.Logger) (*Driver, error) {
-	shardWal, err := wal.InitShardWAL(conf, logger)
+	shardWal, err := wal.InitShardWAL(conf, logger, nil)
 	if err != nil {
 		return nil, err
 	}

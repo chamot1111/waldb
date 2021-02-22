@@ -29,7 +29,7 @@ func TestReplication(t *testing.T) {
 
 	os.RemoveAll("data-test")
 
-	shardWal, err := InitShardWAL(*conf, logger)
+	shardWal, err := InitShardWAL(*conf, logger, nil)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -85,7 +85,7 @@ func TestRsyncCmd(t *testing.T) {
 
 	os.RemoveAll("data-test")
 
-	shardWal, err := InitShardWAL(*conf, logger)
+	shardWal, err := InitShardWAL(*conf, logger, nil)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}

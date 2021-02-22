@@ -35,8 +35,9 @@ type WAL struct {
 
 	currentCheckpointShardIndex *int32
 
-	walFile             File
-	walFileArchiveEvent chan string
+	walFile                 File
+	walFileArchiveEvent     chan string
+	archiveFileCreatedEvent chan string
 }
 
 // InitWAL init the wal file
@@ -59,6 +60,7 @@ func InitWAL(fileExecutor *fileop.BucketFileOperationner, c config.Config, shard
 	}
 
 	walFileArchiveEvent := make(chan string, 1000000)
+	archiveFileCreatedEvent := make(chan string, 1000000)
 
 	AddExistingWALFileToChan(walFileArchiveEvent, c.WalArchiveFolder)
 
@@ -71,7 +73,7 @@ func InitWAL(fileExecutor *fileop.BucketFileOperationner, c config.Config, shard
 		walFile = initFile(int(persistentState.WalIndex), shardIndex, c.ShardCount)
 	}
 
-	return &WAL{
+	resWal := &WAL{
 		logger:                      logger,
 		fileExecutor:                fileExecutor,
 		walFile:                     *walFile,
@@ -82,12 +84,31 @@ func InitWAL(fileExecutor *fileop.BucketFileOperationner, c config.Config, shard
 		shardIndex:                  shardIndex,
 		mergeBarrierOperationIndex:  -1,
 		currentCheckpointShardIndex: currentCheckpointShardIndex,
-	}, nil
+		archiveFileCreatedEvent:     archiveFileCreatedEvent,
+	}
+
+	if len(walFile.cmdsOrder) > 0 {
+		n, err := resWal.checkPointing()
+		if n > 0 {
+			return resWal, fmt.Errorf("load existing wal file has encountered several errors: %d", n)
+		}
+		if err != nil {
+			return resWal, err
+		}
+	}
+
+	return resWal, err
 }
 
 // GetArchiveEventChan for this wal
 func (w *WAL) GetArchiveEventChan() chan string {
 	return w.walFileArchiveEvent
+}
+
+// GetArchiveFileCreatedEventChan when an archive file is created the ContainerFile key is send to
+// this channel
+func (w *WAL) GetArchiveFileCreatedEventChan() chan string {
+	return w.archiveFileCreatedEvent
 }
 
 func loadExistingWALFile(walFilePath string, config config.Config, shardIndex int, logger *zap.Logger) (*File, error) {
@@ -332,7 +353,7 @@ func (w *WAL) suspend() {
 	close(w.walFileArchiveEvent)
 }
 
-func (w *WAL) resume() {
+func (w *WAL) resumeWALFileChan() {
 	w.walFileArchiveEvent = make(chan string, 1000000)
 	AddExistingWALFileToChan(w.walFileArchiveEvent, w.config.WalArchiveFolder)
 }
