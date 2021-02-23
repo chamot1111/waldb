@@ -33,7 +33,7 @@ func TestShardOneWAndR(t *testing.T) {
 
 	os.RemoveAll("data-test")
 
-	bfo, err := InitDriver(*sc, logger)
+	bfo, err := InitDriver(*sc, logger, map[string]Table{})
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -79,7 +79,7 @@ func TestShardOneWAndReadAfterClose(t *testing.T) {
 
 	sc := config.InitDefaultTestConfig()
 
-	bfo, err := InitDriver(*sc, logger)
+	bfo, err := InitDriver(*sc, logger, map[string]Table{})
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -127,7 +127,7 @@ func TestShardCrc(t *testing.T) {
 
 	os.RemoveAll("data-test")
 
-	bfo, err := InitDriver(*sc, logger)
+	bfo, err := InitDriver(*sc, logger, map[string]Table{})
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -205,7 +205,7 @@ func BenchmarkReads(b *testing.B) {
 
 	os.RemoveAll("data-test")
 
-	bfo, err := InitDriver(*sc, logger)
+	bfo, err := InitDriver(*sc, logger, map[string]Table{})
 	if err != nil {
 		b.Fatalf("%v", err)
 	}
@@ -296,7 +296,7 @@ func BenchmarkWrites(b *testing.B) {
 
 	os.RemoveAll("data-test")
 
-	bfo, err := InitDriver(*sc, logger)
+	bfo, err := InitDriver(*sc, logger, map[string]Table{})
 	if err != nil {
 		b.Fatalf("%v", err)
 	}

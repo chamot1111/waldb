@@ -2,27 +2,15 @@ package tablepacked
 
 import (
 	"database/sql"
-	"os"
-	"path"
 	"sync"
 
 	"github.com/chamot1111/waldb/config"
-	"github.com/chamot1111/waldb/fileop"
 	"github.com/chamot1111/waldb/wal"
-	"github.com/chamot1111/waldb/wutils"
 	"go.uber.org/zap"
 
 	// db driver
 	_ "github.com/mattn/go-sqlite3"
 )
-
-type sqlite3Archiver struct {
-	bdByTable           map[string]*sql.DB
-	config              config.Config
-	logger              *zap.Logger
-	tableDescriptorRepo map[string]Table
-	rowDataPool         *sync.Pool
-}
 
 // Driver is the entry point to serve file with the table packed file format
 type Driver struct {
@@ -35,121 +23,15 @@ type Driver struct {
 	archivedFileFuncter wal.ArchivedFileFuncter
 }
 
-func (sa *sqlite3Archiver) Do(p string, file config.ContainerFile) {
-	var descriptor Table
-	var exist bool
-	descriptor, exist = sa.tableDescriptorRepo[file.TableName]
-	if !exist {
-		sa.logger.Error("could not found table descriptor", zap.String("table", file.TableName))
-		return
-	}
-	db, exist := sa.bdByTable[file.TableName]
-	if !exist {
-		fdb := path.Join(sa.config.SqliteFolder, file.TableName+".db")
-		shouldCreateTable := false
-		if _, err := os.Stat(fdb); os.IsNotExist(err) {
-			shouldCreateTable = true
-		}
-		var err error
-		db, err = sql.Open("sqlite3", fdb)
-		if err != nil {
-			sa.logger.Error("could not open sqlite file", zap.String("file", fdb), zap.Error(err))
-			return
-		}
-
-		if shouldCreateTable {
-			sql := "CREATE TABLE " + file.TableName + "("
-			for ic, c := range descriptor.Columns {
-				sql += c.Name
-				switch c.Type {
-				case Tuint | Tenum:
-					sql += " INTEGER"
-				case Tstring:
-					sql += " TEXT"
-				default:
-					sa.logger.Error("unkown type", zap.Int("type", int(c.Type)))
-					return
-				}
-				if ic < len(descriptor.Columns)-1 {
-					sql += ", "
-				}
-			}
-			sql += ");"
-			if _, err := db.Exec(sql); err != nil {
-				sa.logger.Error("could not create sqlite table", zap.String("sql", sql), zap.Error(err))
-				return
-			}
-		}
-
-		sa.bdByTable[file.TableName] = db
-	}
-
-	f, err := os.Open(p)
-	if err != nil {
-		sa.logger.Error("could not open file", zap.String("path", p), zap.Error(err))
-		return
-	}
-	buffer := &wutils.Buffer{}
-	err = fileop.GetFileBufferFromFile(f, buffer)
-	if err != nil {
-		sa.logger.Error("could not get file buffer from file", zap.String("path", p), zap.Error(err))
-		return
-	}
-	buffer.ResetRead()
-
-	err = f.Close()
-	if err != nil {
-		sa.logger.Error("could not close file", zap.String("path", p), zap.Error(err))
-		return
-	}
-
-	tableData, err := ReadAllRowDataFromFileBuffer(buffer, sa.rowDataPool)
-	if err != nil {
-		if _, ok := err.(*ErrBadEndingCRC); !ok {
-			sa.logger.Error("could not parse file", zap.String("path", p), zap.Error(err))
-		} else {
-			sa.logger.Warn("crc error happened on file", zap.String("path", p))
-		}
-	}
-
-	sql := "INSERT INTO " + file.TableName + "("
-	for ic, c := range descriptor.Columns {
-		sql += c.Name
-		if ic < len(descriptor.Columns)-1 {
-			sql += ", "
-		}
-	}
-	values := make([]interface{}, 0)
-	sql += ") VALUES ("
-	for _, rData := range tableData.Data {
-		for ic, c := range descriptor.Columns {
-			if ic < len(rData.Data) {
-				switch c.Type {
-				case Tuint | Tenum:
-					values = append(values, rData.Data[ic].EncodedRawValue)
-				case Tstring:
-					values = append(values, string(rData.Data[ic].Buffer))
-				default:
-					sa.logger.Error("unkown type", zap.Int("type", int(c.Type)))
-					return
-				}
-			} else {
-				sql += "null"
-			}
-			if ic < len(descriptor.Columns)-1 {
-				sql += ", "
-			}
-		}
-	}
-	_, err = db.Exec(sql, values...)
-	if err != nil {
-		sa.logger.Error("could not insert data", zap.String("sql", sql), zap.Error(err))
-	}
-}
-
 // InitDriver init packed table dirver
-func InitDriver(conf config.Config, logger *zap.Logger) (*Driver, error) {
-	sqlite3Archiver := &sqlite3Archiver{}
+func InitDriver(conf config.Config, logger *zap.Logger, tableDescriptorRepo map[string]Table) (*Driver, error) {
+	sqlite3Archiver := &sqlite3Archiver{
+		logger:              logger,
+		config:              conf,
+		rowDataPool:         NewRowDataPool(),
+		tableDescriptorRepo: tableDescriptorRepo,
+		bdByTable:           map[string]*sql.DB{},
+	}
 	shardWal, err := wal.InitShardWAL(conf, logger, sqlite3Archiver)
 	if err != nil {
 		return nil, err

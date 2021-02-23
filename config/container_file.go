@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"hash/fnv"
+	"os"
 	"path"
 	"strings"
 )
@@ -16,6 +17,14 @@ type ContainerFile struct {
 }
 
 const digitsPrefix = 4
+const emptyContainerReplacement = "default"
+
+func containerOrDefault(s string) string {
+	if s == "" {
+		return emptyContainerReplacement
+	}
+	return s
+}
 
 // NewContainerFileWTableName new container file
 func NewContainerFileWTableName(container string, bucket string, subBucket string, table string) ContainerFile {
@@ -30,21 +39,23 @@ func (cf ContainerFile) DataSize() int {
 // PathToFile path to file
 func (cf ContainerFile) PathToFile(c Config) string {
 	prefix, filename := cf.PrefixAndFilename()
-	return path.Join(c.ActiveFolder, cf.Container, prefix, filename)
+	return path.Join(c.ActiveFolder, containerOrDefault(cf.Container), prefix, filename)
 }
 
 // PathToFileFromFolder path to file
 func (cf ContainerFile) PathToFileFromFolder(folder string) string {
 	prefix, filename := cf.PrefixAndFilename()
-	return path.Join(folder, cf.Container, prefix, filename)
+	return path.Join(folder, containerOrDefault(cf.Container), prefix, filename)
 }
 
 // BaseFolder to file
 func (cf ContainerFile) BaseFolder(c Config) string {
 	prefix, _ := cf.PrefixAndFilename()
-	return path.Join(c.ActiveFolder, cf.Container, prefix)
+	return path.Join(c.ActiveFolder, containerOrDefault(cf.Container), prefix)
 }
 
+// PrefixAndFilename give prefix use as a frst folder to limit the count of file per folder
+// and the filename
 func (cf ContainerFile) PrefixAndFilename() (prefix string, filename string) {
 	prefix = cf.Bucket
 	if len(cf.Bucket) > digitsPrefix {
@@ -63,7 +74,7 @@ func (cf ContainerFile) Key() string {
 func (cf ContainerFile) ArchivePath(archiveFolder string, shardIndex, walIndex, operationIndex int) string {
 	prefix, filename := cf.PrefixAndFilename()
 	v := fmt.Sprintf("%s:%d:%d:%d", filename, shardIndex, walIndex, operationIndex)
-	return path.Join(archiveFolder, cf.Container, prefix, cf.SubBucket, v)
+	return path.Join(archiveFolder, containerOrDefault(cf.Container), prefix, cf.SubBucket, v)
 }
 
 // ParseContainerFileFromArchivePath parse file path
@@ -73,16 +84,19 @@ func ParseContainerFileFromArchivePath(b string) (*ContainerFile, error) {
 	if len(removeWalInfo) != 4 {
 		return nil, fmt.Errorf("could not parse wal info from archive name '%s'", string(b))
 	}
-	comps := strings.Split(baseName, "_")
+	comps := strings.Split(removeWalInfo[0], "_")
 
 	if len(comps) != 3 {
 		return nil, fmt.Errorf("could not parse container comps '%s'", string(b))
 	}
-	dir := strings.Split(b, string(path.Dir(b)))
-	if len(dir) < 2 {
+	dir := strings.Split(string(path.Dir(b)), string(os.PathSeparator))
+	if len(dir) < 3 {
 		return nil, fmt.Errorf("could not get app container from path '%s'", string(b))
 	}
-	container := dir[len(dir)-2]
+	container := dir[len(dir)-3]
+	if container == emptyContainerReplacement {
+		container = ""
+	}
 	return &ContainerFile{
 		Container: container,
 		Bucket:    comps[0],
@@ -94,7 +108,7 @@ func ParseContainerFileFromArchivePath(b string) (*ContainerFile, error) {
 // ArchiveFolder path to the archive file
 func (cf ContainerFile) ArchiveFolder(archiveFolder string) string {
 	prefix, _ := cf.PrefixAndFilename()
-	return path.Join(archiveFolder, cf.Container, prefix)
+	return path.Join(archiveFolder, containerOrDefault(cf.Container), prefix)
 }
 
 // ParseContainerFileKey parse a container file from string

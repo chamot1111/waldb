@@ -18,6 +18,8 @@ import (
 
 const walArchiveFilePrefix = "wal-"
 const maxRetryCount = 2
+const archiveFileCreatedEventLen = 1000000
+const walFileArchiveEventLen = 1000000
 
 // WAL is used to make sure, we can restore state after a power failure or software failure
 type WAL struct {
@@ -59,8 +61,8 @@ func InitWAL(fileExecutor *fileop.BucketFileOperationner, c config.Config, shard
 		return nil, err
 	}
 
-	walFileArchiveEvent := make(chan string, 1000000)
-	archiveFileCreatedEvent := make(chan string, 1000000)
+	walFileArchiveEvent := make(chan string, walFileArchiveEventLen)
+	archiveFileCreatedEvent := make(chan string, archiveFileCreatedEventLen)
 
 	AddExistingWALFileToChan(walFileArchiveEvent, c.WalArchiveFolder)
 
@@ -79,7 +81,7 @@ func InitWAL(fileExecutor *fileop.BucketFileOperationner, c config.Config, shard
 		walFile:                     *walFile,
 		config:                      c,
 		persistentState:             persistentState,
-		walFileArchiveEvent:         make(chan string, 1000000),
+		walFileArchiveEvent:         make(chan string, walFileArchiveEventLen),
 		lastCheckpointingTime:       time.Now(),
 		shardIndex:                  shardIndex,
 		mergeBarrierOperationIndex:  -1,
@@ -109,6 +111,11 @@ func (w *WAL) GetArchiveEventChan() chan string {
 // this channel
 func (w *WAL) GetArchiveFileCreatedEventChan() chan string {
 	return w.archiveFileCreatedEvent
+}
+
+func (w *WAL) renewArchiveFileCreatedEventChan() {
+	close(w.archiveFileCreatedEvent)
+	w.archiveFileCreatedEvent = make(chan string, archiveFileCreatedEventLen)
 }
 
 func loadExistingWALFile(walFilePath string, config config.Config, shardIndex int, logger *zap.Logger) (*File, error) {
@@ -354,7 +361,7 @@ func (w *WAL) suspend() {
 }
 
 func (w *WAL) resumeWALFileChan() {
-	w.walFileArchiveEvent = make(chan string, 1000000)
+	w.walFileArchiveEvent = make(chan string, walFileArchiveEventLen)
 	AddExistingWALFileToChan(w.walFileArchiveEvent, w.config.WalArchiveFolder)
 }
 
@@ -476,6 +483,21 @@ func (w *WAL) checkPointing() (errOpsCount int, err error) {
 	if err := w.file.Close(); err != nil {
 		return errOpsCount, err
 	}
+
+	for cfStr, opForFile := range w.walFile.cmdsPerFile {
+		for _, op := range opForFile {
+			if op.cmd == archiveCmd {
+				cf, err := config.ParseContainerFileKey(cfStr)
+				if err != nil {
+					w.logger.Error("could not parse container file key to send archive file", zap.String("key", cfStr), zap.Error(err))
+					continue
+				}
+				p := cf.ArchivePath(w.config.ArchiveFolder, w.shardIndex, int(w.walFile.walIndex), int(op.operationIndex))
+				w.archiveFileCreatedEvent <- p
+			}
+		}
+	}
+
 	w.file = nil
 
 	w.persistentState.WalIndex++

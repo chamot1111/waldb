@@ -32,6 +32,7 @@ type ShardWAL struct {
 	currentCheckpointShardIndex int32
 	archivedFileFuncter         ArchivedFileFuncter
 	backgroundExclusiveTask     *sync.Mutex
+	archivedChan                chan string
 }
 
 // InitShardWAL init a shard wal
@@ -64,8 +65,8 @@ func InitShardWAL(config config.Config, logger *zap.Logger, archivedFileFuncter 
 	}
 
 	res.wals = wals
-	archivedChan := res.getArchiveFileCreatedEventChan()
-	go archivedFileRountine(archivedChan, res.archivedFileFuncter, res.backgroundExclusiveTask)
+	res.archivedChan = res.getArchiveFileCreatedEventChan()
+	go archivedFileRountine(res.archivedChan, res.archivedFileFuncter, res.backgroundExclusiveTask, logger)
 	return res, nil
 }
 
@@ -73,6 +74,14 @@ func InitShardWAL(config config.Config, logger *zap.Logger, archivedFileFuncter 
 func (swa *ShardWAL) ExecRsyncCommand(params map[string][]string) ([]byte, error) {
 	swa.backgroundExclusiveTask.Lock()
 	defer swa.backgroundExclusiveTask.Unlock()
+	swa.renewArchiveFileCreatedEventChan()
+	for range swa.archivedChan {
+		// flush actual pending archive file
+	}
+	defer func() {
+		swa.archivedChan = swa.getArchiveFileCreatedEventChan()
+		go archivedFileRountine(swa.archivedChan, swa.archivedFileFuncter, swa.backgroundExclusiveTask, swa.logger)
+	}()
 	if swa.config.RsyncCommand == "" {
 		swa.logger.Info("No rsync command")
 		return nil, nil
@@ -182,21 +191,23 @@ func (swa *ShardWAL) GetArchiveEventChan() []chan string {
 	return res
 }
 
-func archivedFileRountine(ch chan string, archivedFileFunc ArchivedFileFuncter, mutex *sync.Mutex) {
+func archivedFileRountine(ch chan string, archivedFileFunc ArchivedFileFuncter, mutex *sync.Mutex, logger *zap.Logger) {
 	for s := range ch {
 		if archivedFileFunc != nil {
-			archivedFileRountineWithLock(s, archivedFileFunc, mutex)
+			archivedFileRountineWithLock(s, archivedFileFunc, mutex, logger)
 		}
 	}
 }
 
-func archivedFileRountineWithLock(p string, archivedFileFunc ArchivedFileFuncter, mutex *sync.Mutex) {
+func archivedFileRountineWithLock(p string, archivedFileFunc ArchivedFileFuncter, mutex *sync.Mutex, logger *zap.Logger) {
 	mutex.Lock()
 	defer mutex.Unlock()
 	cf, err := config.ParseContainerFileFromArchivePath(p)
 	if err != nil {
-		archivedFileFunc.Do(p, *cf)
+		logger.Error("could not parse container file", zap.String("path", p), zap.Error(err))
+		return
 	}
+	archivedFileFunc.Do(p, *cf)
 }
 
 // getArchiveFileCreatedEventChan when an archive file is created by any wal, the ContainerFile key is send to
@@ -206,14 +217,25 @@ func (swa *ShardWAL) getArchiveFileCreatedEventChan() chan string {
 	for _, v := range swa.wals {
 		res = append(res, v.w.GetArchiveFileCreatedEventChan())
 	}
-	c := mergeStringChans(res)
+	c := mergeStringChans(res, 1000000)
 	swa.addExistingArchivedFileToChan(c)
 	return c
 }
 
+// renewArchiveFileCreatedEventChan renew all the channel closing the old ones
+func (swa *ShardWAL) renewArchiveFileCreatedEventChan() {
+	for _, v := range swa.wals {
+		v.w.renewArchiveFileCreatedEventChan()
+	}
+}
+
 func (swa *ShardWAL) addExistingArchivedFileToChan(c chan string) error {
 	err := wutils.WalkFolderUnordered(swa.config.ArchiveFolder, func(path string, info os.FileInfo, err error) error {
-		c <- path
+		if len(c) < cap(c) {
+			if info != nil && !info.IsDir() {
+				c <- path
+			}
+		}
 		return nil
 	})
 	if err != nil {

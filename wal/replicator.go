@@ -27,7 +27,7 @@ type Replicator struct {
 
 // InitReplicator init a replicator
 func InitReplicator(archiveEventChans []chan string, activeFolder, archiveFolder string, archiveCmd string, logger *zap.Logger) *Replicator {
-	var archiveEventChan chan string = mergeStringChans(archiveEventChans)
+	var archiveEventChan chan string = mergeStringChans(archiveEventChans, 1000000)
 	return &Replicator{
 		archiveEventChan: archiveEventChan,
 		activeFolder:     activeFolder,
@@ -147,8 +147,8 @@ func (r *Replicator) coldReplay(archiveWalFilePath string, walFile *File) error 
 	return nil
 }
 
-func mergeStringChans(cs []chan string) chan string {
-	out := make(chan string)
+func mergeStringChans(cs []chan string, lenChan int) chan string {
+	out := make(chan string, lenChan)
 	var wg sync.WaitGroup
 	wg.Add(len(cs))
 	for _, c := range cs {
