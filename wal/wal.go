@@ -259,6 +259,7 @@ func (w *WAL) Write(cf config.ContainerFile, fileOffset int64, fileSize int64, b
 			}
 			w.fileSize = w.fileSize + len(b)
 		}
+		lastCmd.fileSize = uint64(fileSize)
 	} else {
 		buffer := &wutils.Buffer{}
 

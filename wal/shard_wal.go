@@ -235,6 +235,8 @@ func (swa *ShardWAL) addExistingArchivedFileToChan(c chan string) error {
 			if info != nil && !info.IsDir() {
 				c <- path
 			}
+		} else {
+			swa.logger.Warn("capacity reached, skip archive file", zap.String("path", path))
 		}
 		return nil
 	})

@@ -133,7 +133,7 @@ func (sa *sqlite3Archiver) Do(p string, file config.ContainerFile) {
 		}
 	}
 
-	if maxRowID > maxSqliteRowPerFile {
+	if maxRowID >= maxSqliteRowPerFile {
 		delete(sa.bdByTable, file.TableName)
 		sa.logger.Info("archive sqlite file because limit row has been reached", zap.Int("limit", maxSqliteRowPerFile), zap.Int("max-row-id", maxRowID))
 		err = db.Close()
