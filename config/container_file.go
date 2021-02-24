@@ -74,7 +74,7 @@ func (cf ContainerFile) Key() string {
 func (cf ContainerFile) ArchivePath(archiveFolder string, shardIndex, walIndex, operationIndex int) string {
 	prefix, filename := cf.PrefixAndFilename()
 	v := fmt.Sprintf("%s:%d:%d:%d", filename, shardIndex, walIndex, operationIndex)
-	return path.Join(archiveFolder, containerOrDefault(cf.Container), prefix, cf.SubBucket, v)
+	return path.Join(archiveFolder, containerOrDefault(cf.Container), prefix, v)
 }
 
 // ParseContainerFileFromArchivePath parse file path
@@ -90,10 +90,10 @@ func ParseContainerFileFromArchivePath(b string) (*ContainerFile, error) {
 		return nil, fmt.Errorf("could not parse container comps '%s'", string(b))
 	}
 	dir := strings.Split(string(path.Dir(b)), string(os.PathSeparator))
-	if len(dir) < 3 {
+	if len(dir) < 2 {
 		return nil, fmt.Errorf("could not get app container from path '%s'", string(b))
 	}
-	container := dir[len(dir)-3]
+	container := dir[len(dir)-2]
 	if container == emptyContainerReplacement {
 		container = ""
 	}

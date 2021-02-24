@@ -62,6 +62,17 @@ func (d *Driver) AppendRowData(cf config.ContainerFile, rows []*RowData) error {
 	return appendRowDataToFile(cf, wal, rows)
 }
 
+// RemoveContent append rows to a container file
+func (d *Driver) RemoveContent(cf config.ContainerFile) error {
+	si := cf.ShardIndex(uint32(d.conf.ShardCount))
+	d.shardWal.LockShardIndex(si)
+	defer d.shardWal.UnlockShardIndex(si)
+
+	wal := d.shardWal.GetWalForShardIndex(si)
+
+	return wal.Truncate(cf, 0)
+}
+
 // ReadAllRowData from file
 func (d *Driver) ReadAllRowData(cf config.ContainerFile) (TableDataSlice, error) {
 	si := cf.ShardIndex(uint32(d.conf.ShardCount))

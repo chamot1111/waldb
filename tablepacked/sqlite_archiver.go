@@ -154,48 +154,62 @@ func (sa *sqlite3Archiver) Do(p string, file config.ContainerFile) {
 		}
 	}
 
-	sql := "INSERT INTO " + file.TableName + "("
-	for ic, c := range descriptor.Columns {
-		sql += c.Name
-		if ic < len(descriptor.Columns)-1 {
-			sql += ", "
-		}
-	}
-
 	if len(tableData.Data) > 0 {
-		values := make([]interface{}, 0)
-		sql += ") VALUES "
-		for rDataI, rData := range tableData.Data {
-			sql += "("
+		const batchInsertRow = 100
+		curRow := 0
+		for curRow < len(tableData.Data) {
+			thisRowsMax := curRow + batchInsertRow
+			if thisRowsMax >= len(tableData.Data) {
+				thisRowsMax = len(tableData.Data) - 1
+			}
+			thisRows := tableData.Data[curRow:thisRowsMax]
+			if len(thisRows) == 0 {
+				break
+			}
+			values := make([]interface{}, 0)
+			sql := "INSERT INTO " + file.TableName + "("
 			for ic, c := range descriptor.Columns {
-				if ic < len(rData.Data) {
-					switch c.Type {
-					case Tuint, Tenum:
-						sql += "?"
-						values = append(values, rData.Data[ic].EncodedRawValue)
-					case Tstring:
-						sql += "?"
-						values = append(values, string(rData.Data[ic].Buffer))
-					default:
-						sa.logger.Error("unkown type", zap.Int("type", int(c.Type)))
-						return
-					}
-				} else {
-					sql += "null"
-				}
+				sql += c.Name
 				if ic < len(descriptor.Columns)-1 {
 					sql += ", "
 				}
 			}
-			sql += ")"
-			if rDataI < len(tableData.Data)-1 {
-				sql += ", "
+
+			sql += ") VALUES "
+			for rDataI, rData := range thisRows {
+				sql += "("
+				for ic, c := range descriptor.Columns {
+					if ic < len(rData.Data) {
+						switch c.Type {
+						case Tuint, Tenum:
+							sql += "?"
+							values = append(values, rData.Data[ic].EncodedRawValue)
+						case Tstring:
+							sql += "?"
+							values = append(values, string(rData.Data[ic].Buffer))
+						default:
+							sa.logger.Error("unkown type", zap.Int("type", int(c.Type)))
+							return
+						}
+					} else {
+						sql += "null"
+					}
+					if ic < len(descriptor.Columns)-1 {
+						sql += ", "
+					}
+				}
+				sql += ")"
+				if rDataI < len(thisRows)-1 {
+					sql += ", "
+				}
 			}
-		}
-		_, err = db.Exec(sql, values...)
-		if err != nil {
-			sa.logger.Error("could not insert data", zap.String("sql", sql), zap.Error(err))
-			return
+			_, err = db.Exec(sql, values...)
+			if err != nil {
+				sa.logger.Error("could not insert data", zap.String("sql", sql), zap.Error(err))
+				return
+			}
+
+			curRow += batchInsertRow
 		}
 	}
 
