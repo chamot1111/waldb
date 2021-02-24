@@ -161,38 +161,52 @@ func (sa *sqlite3Archiver) Do(p string, file config.ContainerFile) {
 			sql += ", "
 		}
 	}
-	values := make([]interface{}, 0)
-	sql += ") VALUES "
-	for rDataI, rData := range tableData.Data {
-		sql += "("
-		for ic, c := range descriptor.Columns {
-			if ic < len(rData.Data) {
-				switch c.Type {
-				case Tuint, Tenum:
-					sql += "?"
-					values = append(values, rData.Data[ic].EncodedRawValue)
-				case Tstring:
-					sql += "?"
-					values = append(values, string(rData.Data[ic].Buffer))
-				default:
-					sa.logger.Error("unkown type", zap.Int("type", int(c.Type)))
-					return
+
+	if len(tableData.Data) > 0 {
+		values := make([]interface{}, 0)
+		sql += ") VALUES "
+		for rDataI, rData := range tableData.Data {
+			sql += "("
+			for ic, c := range descriptor.Columns {
+				if ic < len(rData.Data) {
+					switch c.Type {
+					case Tuint, Tenum:
+						sql += "?"
+						values = append(values, rData.Data[ic].EncodedRawValue)
+					case Tstring:
+						sql += "?"
+						values = append(values, string(rData.Data[ic].Buffer))
+					default:
+						sa.logger.Error("unkown type", zap.Int("type", int(c.Type)))
+						return
+					}
+				} else {
+					sql += "null"
 				}
-			} else {
-				sql += "null"
+				if ic < len(descriptor.Columns)-1 {
+					sql += ", "
+				}
 			}
-			if ic < len(descriptor.Columns)-1 {
+			sql += ")"
+			if rDataI < len(tableData.Data)-1 {
 				sql += ", "
 			}
 		}
-		sql += ")"
-		if rDataI < len(tableData.Data)-1 {
-			sql += ", "
+		_, err = db.Exec(sql, values...)
+		if err != nil {
+			sa.logger.Error("could not insert data", zap.String("sql", sql), zap.Error(err))
+			return
 		}
 	}
-	_, err = db.Exec(sql, values...)
+
+	for _, r := range tableData.Data {
+		r.Data = r.Data[0:0]
+		sa.rowDataPool.Put(r)
+	}
+
+	err = os.Remove(p)
 	if err != nil {
-		sa.logger.Error("could not insert data", zap.String("sql", sql), zap.Error(err))
+		sa.logger.Error("could not delete archive file", zap.String("path", p), zap.Error(err))
 		return
 	}
 }
