@@ -44,6 +44,17 @@ func (sa *sqlite3Archiver) openDbAndRegisterIt(fdb string, file config.Container
 		return nil
 	}
 
+	_, err = db.Exec("pragma journal_mode = WAL;")
+	if err != nil {
+		sa.logger.Error("could not set journal_mode = WAL", zap.String("file", fdb), zap.Error(err))
+		return nil
+	}
+	_, err = db.Exec("pragma synchronous = normal;")
+	if err != nil {
+		sa.logger.Error("could not set synchronous = normal", zap.String("file", fdb), zap.Error(err))
+		return nil
+	}
+
 	if shouldCreateTable {
 		sql := "CREATE TABLE " + file.TableName + "("
 		for ic, c := range descriptor.Columns {
@@ -160,7 +171,7 @@ func (sa *sqlite3Archiver) Do(p string, file config.ContainerFile) {
 		for curRow < len(tableData.Data) {
 			thisRowsMax := curRow + batchInsertRow
 			if thisRowsMax >= len(tableData.Data) {
-				thisRowsMax = len(tableData.Data) - 1
+				thisRowsMax = len(tableData.Data)
 			}
 			thisRows := tableData.Data[curRow:thisRowsMax]
 			if len(thisRows) == 0 {
