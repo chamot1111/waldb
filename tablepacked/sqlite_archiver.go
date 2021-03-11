@@ -84,6 +84,13 @@ func (sa *sqlite3Archiver) openDbAndRegisterIt(fdb string, file config.Container
 	return db
 }
 
+func (sa *sqlite3Archiver) Close() {
+	for key, db := range sa.bdByTable {
+		err := db.Close()
+		sa.logger.Error("could not close sqlite table", zap.String("table", key), zap.Error(err))
+	}
+}
+
 func (sa *sqlite3Archiver) Do(p string, file config.ContainerFile) {
 	var descriptor Table
 	var exist bool

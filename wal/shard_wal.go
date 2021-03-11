@@ -21,6 +21,7 @@ type shardWALRessource struct {
 // ArchivedFileFuncter func called when a new archived file is created
 type ArchivedFileFuncter interface {
 	Do(path string, file config.ContainerFile)
+	Close()
 }
 
 // ShardWAL is a shard of wal to maximise cpu bound operation and
@@ -197,6 +198,7 @@ func archivedFileRountine(ch chan string, archivedFileFunc ArchivedFileFuncter, 
 			archivedFileRountineWithLock(s, archivedFileFunc, mutex, logger)
 		}
 	}
+	archivedFileFunc.Close()
 }
 
 func archivedFileRountineWithLock(p string, archivedFileFunc ArchivedFileFuncter, mutex *sync.Mutex, logger *zap.Logger) {

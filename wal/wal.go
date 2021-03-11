@@ -353,12 +353,12 @@ func (w *WAL) Close() error {
 		return err
 	}
 	w.fileExecutor.Close()
+	close(w.walFileArchiveEvent)
 	return nil
 }
 
 func (w *WAL) suspend() {
 	w.Close()
-	close(w.walFileArchiveEvent)
 }
 
 func (w *WAL) resumeWALFileChan() {
