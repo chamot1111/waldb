@@ -44,14 +44,14 @@ func (sa *sqlite3Archiver) openDbAndRegisterIt(fdb string, file config.Container
 		return nil
 	}
 
-	_, err = db.Exec("pragma journal_mode = WAL;")
+	_, err = db.Exec(fmt.Sprintf("pragma journal_mode = %s;", sa.config.SqliteArchiverJournalMode))
 	if err != nil {
-		sa.logger.Error("could not set journal_mode = WAL", zap.String("file", fdb), zap.Error(err))
+		sa.logger.Error("could not set journal_mode", zap.String("file", fdb), zap.Error(err), zap.String("journal_mode", sa.config.SqliteArchiverJournalMode))
 		return nil
 	}
-	_, err = db.Exec("pragma synchronous = normal;")
+	_, err = db.Exec(fmt.Sprintf("pragma synchronous = %s;", sa.config.SqliteArchiverSynchronous))
 	if err != nil {
-		sa.logger.Error("could not set synchronous = normal", zap.String("file", fdb), zap.Error(err))
+		sa.logger.Error("could not set synchronous", zap.String("file", fdb), zap.Error(err), zap.String("synchronous", sa.config.SqliteArchiverSynchronous))
 		return nil
 	}
 
@@ -173,6 +173,11 @@ func (sa *sqlite3Archiver) Do(p string, file config.ContainerFile) {
 	}
 
 	if len(tableData.Data) > 0 {
+		tx, err := db.Begin()
+		if err != nil {
+			sa.logger.Error("could not create transaction for sqlite archiver", zap.Error(err))
+			return
+		}
 		const batchInsertRow = 100
 		curRow := 0
 		for curRow < len(tableData.Data) {
@@ -221,13 +226,18 @@ func (sa *sqlite3Archiver) Do(p string, file config.ContainerFile) {
 					sql += ", "
 				}
 			}
-			_, err = db.Exec(sql, values...)
+			_, err = tx.Exec(sql, values...)
 			if err != nil {
 				sa.logger.Error("could not insert data", zap.String("sql", sql), zap.Error(err))
 				return
 			}
 
 			curRow += batchInsertRow
+		}
+		err = tx.Commit()
+		if err != nil {
+			sa.logger.Error("could not commit transaction for sqlite archiver", zap.Error(err))
+			return
 		}
 	}
 
