@@ -206,7 +206,7 @@ func archivedFileRountineWithLock(p string, archivedFileFunc ArchivedFileFuncter
 	defer mutex.Unlock()
 	cf, err := config.ParseContainerFileFromArchivePath(p)
 	if err != nil {
-		logger.Error("could not parse container file", zap.String("path", p), zap.Error(err))
+		logger.Warn(fmt.Sprintf("file %s is not an archive file: discarded for resume archive routine", p), zap.String("path", p), zap.String("err", err.Error()))
 		return
 	}
 	archivedFileFunc.Do(p, *cf)
