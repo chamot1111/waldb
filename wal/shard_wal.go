@@ -38,6 +38,7 @@ type ShardWAL struct {
 
 // InitShardWAL init a shard wal
 func InitShardWAL(config config.Config, logger *zap.Logger, archivedFileFuncter ArchivedFileFuncter) (*ShardWAL, error) {
+	logger.Info("InitShardWAL")
 	res := &ShardWAL{
 		config:                      config,
 		logger:                      logger,
@@ -49,10 +50,12 @@ func InitShardWAL(config config.Config, logger *zap.Logger, archivedFileFuncter 
 	wals := make([]*shardWALRessource, 0, config.ShardCount)
 
 	for i := 0; i < config.ShardCount; i++ {
+		logger.Info("InitBucketFileOperationner", zap.Int("index", i))
 		bfo, err := fileop.InitBucketFileOperationner(config, logger)
 		if err != nil {
 			return nil, err
 		}
+		logger.Info("InitWAL", zap.Int("index", i))
 		wal, err := InitWAL(bfo, config, i, logger, &res.currentCheckpointShardIndex)
 		if err != nil {
 			return nil, err
