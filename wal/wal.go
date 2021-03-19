@@ -51,11 +51,13 @@ func InitWAL(fileExecutor *fileop.BucketFileOperationner, c config.Config, shard
 		return nil, fmt.Errorf("could not create folder for wal file: %w", err)
 	}
 
+	logger.Info("InitWAL:InitPersistentFileFromDisk")
 	persistentState, err := InitPersistentFileFromDisk(c, shardIndex)
 	if err != nil {
 		return nil, err
 	}
 
+	logger.Info("InitWAL:loadExistingWALFile")
 	walFile, err := loadExistingWALFile(getWalPath(c, shardIndex), c, shardIndex, logger)
 	if err != nil {
 		return nil, err
@@ -64,6 +66,7 @@ func InitWAL(fileExecutor *fileop.BucketFileOperationner, c config.Config, shard
 	walFileArchiveEvent := make(chan string, walFileArchiveEventLen)
 	archiveFileCreatedEvent := make(chan string, archiveFileCreatedEventLen)
 
+	logger.Info("InitWAL:AddExistingWALFileToChan")
 	AddExistingWALFileToChan(walFileArchiveEvent, c.WalArchiveFolder)
 
 	if walFile == nil {
@@ -72,6 +75,7 @@ func InitWAL(fileExecutor *fileop.BucketFileOperationner, c config.Config, shard
 		if err != nil {
 			return nil, err
 		}
+		logger.Info("InitWAL:initFile")
 		walFile = initFile(int(persistentState.WalIndex), shardIndex, c.ShardCount)
 	}
 
