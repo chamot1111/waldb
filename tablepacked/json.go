@@ -109,9 +109,16 @@ func (t Table) ParseJSON(buffer []byte) (RowData, error) {
 				res.Data[idx].Buffer = []byte{}
 				nullValue[idx] = true
 			} else {
-				res.Data[idx].EncodedRawValue = uint64(len(value))
-				dst := make([]byte, len(value))
-				copy(dst, value)
+				var perr error
+				str, perr := jsonparser.ParseString(value)
+				if err != nil {
+					hasError = true
+					errors[idx] = perr
+				}
+				strByte := []byte(str)
+				res.Data[idx].EncodedRawValue = uint64(len(strByte))
+				dst := make([]byte, len(strByte))
+				copy(dst, strByte)
 				res.Data[idx].Buffer = dst
 				parsed[idx] = true
 			}
