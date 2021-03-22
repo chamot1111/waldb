@@ -69,6 +69,7 @@ func InitShardWAL(config config.Config, logger *zap.Logger, archivedFileFuncter 
 	}
 
 	res.wals = wals
+	logger.Info("InitShardWAL::getArchiveFileCreatedEventChan")
 	res.archivedChan = res.getArchiveFileCreatedEventChan()
 	go archivedFileRountine(res.archivedChan, res.archivedFileFuncter, res.backgroundExclusiveTask, logger)
 	return res, nil
@@ -223,7 +224,9 @@ func (swa *ShardWAL) getArchiveFileCreatedEventChan() chan string {
 		res = append(res, v.w.GetArchiveFileCreatedEventChan())
 	}
 	c := mergeStringChans(res, 1000000)
+	swa.logger.Info("InitShardWAL::addExistingArchivedFileToChan start")
 	swa.addExistingArchivedFileToChan(c)
+	swa.logger.Info("InitShardWAL::addExistingArchivedFileToChan stop")
 	return c
 }
 
