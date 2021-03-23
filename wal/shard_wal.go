@@ -224,9 +224,11 @@ func (swa *ShardWAL) getArchiveFileCreatedEventChan() chan string {
 		res = append(res, v.w.GetArchiveFileCreatedEventChan())
 	}
 	c := mergeStringChans(res, 1000000)
-	swa.logger.Info("InitShardWAL::addExistingArchivedFileToChan start", zap.String("archive-folder", swa.config.ArchiveFolder))
-	swa.addExistingArchivedFileToChan(c)
-	swa.logger.Info("InitShardWAL::addExistingArchivedFileToChan stop")
+	if !swa.config.DisableResumeArchiving {
+		swa.logger.Info("InitShardWAL::addExistingArchivedFileToChan start", zap.String("archive-folder", swa.config.ArchiveFolder))
+		swa.addExistingArchivedFileToChan(c)
+		swa.logger.Info("InitShardWAL::addExistingArchivedFileToChan stop")
+	}
 	return c
 }
 

@@ -18,6 +18,7 @@ type Config struct {
 	RsyncCommand              string
 	SqliteArchiverJournalMode string
 	SqliteArchiverSynchronous string
+	DisableResumeArchiving    bool
 }
 
 // InitDefaultConfig init config with default parameters
@@ -34,6 +35,7 @@ func InitDefaultConfig() *Config {
 		MaxWALFileDurationS:       10 * 60,
 		SqliteArchiverJournalMode: "WAL",
 		SqliteArchiverSynchronous: "normal",
+		DisableResumeArchiving:    false,
 	}
 }
 
@@ -53,5 +55,6 @@ func InitDefaultTestConfig() *Config {
 		MaxWALFileDurationS:       1000000000000,
 		SqliteArchiverJournalMode: "WAL",
 		SqliteArchiverSynchronous: "normal",
+		DisableResumeArchiving:    false,
 	}
 }
