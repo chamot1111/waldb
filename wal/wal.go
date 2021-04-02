@@ -219,12 +219,12 @@ func (w *WAL) Truncate(cf config.ContainerFile, offset int64) error {
 		writeOffset:    uint64(offset),
 		operationIndex: uint32(len(w.walFile.cmdsOrder)),
 	}
-	w.walFile.addCmd(newCmd)
 	if w.file == nil {
 		if err := w.createNewFile(); err != nil {
 			return fmt.Errorf("could not write wal file: %w", err)
 		}
 	}
+	w.walFile.addCmd(newCmd)
 	return nil
 }
 
@@ -236,12 +236,12 @@ func (w *WAL) Archive(cf config.ContainerFile) error {
 		buffer:         nil,
 		operationIndex: uint32(len(w.walFile.cmdsOrder)),
 	}
-	w.walFile.addCmd(newCmd)
 	if w.file == nil {
 		if err := w.createNewFile(); err != nil {
 			return fmt.Errorf("could not write wal file: %w", err)
 		}
 	}
+	w.walFile.addCmd(newCmd)
 	return nil
 }
 
