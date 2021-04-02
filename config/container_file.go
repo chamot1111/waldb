@@ -105,6 +105,30 @@ func ParseContainerFileFromArchivePath(b string) (*ContainerFile, error) {
 	}, nil
 }
 
+// ParseContainerFileFromActivePath parse file path
+func ParseContainerFileFromActivePath(b string) (*ContainerFile, error) {
+	baseName := path.Base(b)
+	comps := strings.Split(baseName, "_")
+
+	if len(comps) != 3 {
+		return nil, fmt.Errorf("could not parse container comps '%s'", string(b))
+	}
+	dir := strings.Split(string(path.Dir(b)), string(os.PathSeparator))
+	if len(dir) < 2 {
+		return nil, fmt.Errorf("could not get app container from path '%s'", string(b))
+	}
+	container := dir[len(dir)-2]
+	if container == emptyContainerReplacement {
+		container = ""
+	}
+	return &ContainerFile{
+		Container: container,
+		Bucket:    comps[0],
+		SubBucket: comps[1],
+		TableName: comps[2],
+	}, nil
+}
+
 // ArchiveFolder path to the archive file
 func (cf ContainerFile) ArchiveFolder(archiveFolder string) string {
 	prefix, _ := cf.PrefixAndFilename()
