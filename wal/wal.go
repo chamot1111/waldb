@@ -205,6 +205,10 @@ func (w *WAL) curFileSize(cf config.ContainerFile) (int64, error) {
 
 // Truncate file
 func (w *WAL) Truncate(cf config.ContainerFile, offset int64) error {
+	if err := w.checkpointIfNecessary(); err != nil {
+		return err
+	}
+
 	fs, err := w.curFileSize(cf)
 	if err != nil {
 		return err
@@ -230,6 +234,10 @@ func (w *WAL) Truncate(cf config.ContainerFile, offset int64) error {
 
 // Archive file
 func (w *WAL) Archive(cf config.ContainerFile) error {
+	if err := w.checkpointIfNecessary(); err != nil {
+		return err
+	}
+
 	newCmd := &walCmd{
 		cf:             cf,
 		cmd:            archiveCmd,
