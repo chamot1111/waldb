@@ -98,18 +98,21 @@ func (r *Replicator) loop() {
 				r.logger.Error("Replicator: could not read wal file", zap.String("archive path", archiveWalFilePath), zap.Error(err))
 				return
 			}
-			for true {
+			var retryCount = 0
+			for retryCount < 3 {
 				err := r.coldReplay(archiveWalFilePath, walFile)
 				if err == nil {
 					break
 				}
 
-				r.logger.Info("Replicator: cold replay fail retry in 10 seconds", zap.Error(err))
-				time.Sleep(10 * time.Second)
+				r.logger.Info("Replicator: cold replay fail retry in 5 seconds", zap.Error(err))
+				time.Sleep(5 * time.Second)
+				retryCount++
 			}
 		}
 		if r.archiveCmd != "" {
-			for true {
+			var retryCount = 0
+			for retryCount < 3 {
 				cmdExpanded := strings.ReplaceAll(r.archiveCmd, "%p", archiveWalFilePath)
 				cmdExpanded = strings.ReplaceAll(cmdExpanded, "%f", path.Base(archiveWalFilePath))
 				cmd := exec.Command("/bin/sh", "-c", cmdExpanded)
@@ -119,8 +122,9 @@ func (r *Replicator) loop() {
 					break
 				}
 
-				r.logger.Info("Replicator: Running archive command fail. retry in 10 seconds", zap.Error(err))
-				time.Sleep(10 * time.Second)
+				r.logger.Info("Replicator: Running archive command fail. retry in 5 seconds", zap.Error(err))
+				time.Sleep(5 * time.Second)
+				retryCount++
 			}
 		}
 		if r.end {

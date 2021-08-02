@@ -26,6 +26,7 @@ func TestReplication(t *testing.T) {
 	conf := config.InitDefaultTestConfig()
 	conf.ReplicationActiveFolder = "data-test/rep-active"
 	conf.ReplicationArchiveFolder = "data-test/rep-archive"
+	conf.ArchiveCommand = "echo \"%f %p\" > data-test/rsyn-test.txt"
 
 	os.RemoveAll("data-test")
 
@@ -64,7 +65,63 @@ func TestReplication(t *testing.T) {
 }
 
 func TestArchiveCmd(t *testing.T) {
+	encoderCfg := zapcore.EncoderConfig{
+		MessageKey:     "msg",
+		LevelKey:       "level",
+		NameKey:        "logger",
+		EncodeLevel:    zapcore.LowercaseLevelEncoder,
+		EncodeTime:     zapcore.ISO8601TimeEncoder,
+		EncodeDuration: zapcore.StringDurationEncoder,
+	}
+	core := zapcore.NewCore(zapcore.NewJSONEncoder(encoderCfg), os.Stdout, zap.DebugLevel)
+	logger := zap.New(core).WithOptions()
 
+	conf := config.InitDefaultTestConfig()
+	conf.ReplicationActiveFolder = "data-test/rep-active"
+	conf.ArchiveCommand = "echo \"%f %p\" > data-test/rsyn-test.txt"
+
+	os.RemoveAll("data-test")
+
+	shardWal, err := InitShardWAL(*conf, logger, nil)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+
+	rep := InitReplicator(shardWal.GetArchiveEventChan(), conf.ReplicationActiveFolder, conf.ReplicationArchiveFolder, conf.ArchiveCommand, logger)
+	rep.Start()
+
+	cf := config.NewContainerFileWTableName("app1", "b0", "sb0", "inter")
+
+	si := cf.ShardIndex(uint32(conf.ShardCount))
+	shardWal.LockShardIndex(si)
+	wal := shardWal.GetWalForShardIndex(si)
+	buf := [3]byte{1, 2, 3}
+	wal.AppendWrite(cf, buf[:])
+	shardWal.UnlockShardIndex(si)
+
+	errors := shardWal.CloseAll()
+	if errors != nil && errors.Err() != nil {
+		t.Fatalf("%v", errors.Err())
+	}
+
+	rep.Stop()
+
+	contentB, err := ioutil.ReadFile("data-test/rsyn-test.txt")
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	content := strings.TrimSuffix(string(contentB), "\n")
+	var comps = strings.Split(content, " ")
+	if len(comps) != 2 {
+		t.Fatalf("should have 2 comps: %v", content)
+	}
+	var filename = comps[0]
+	var fullpath = comps[1]
+
+	expectedContent := conf.WalArchiveFolder + "/" + filename
+	if fullpath != expectedContent {
+		t.Fatalf("'%s' expected '%s'", content, expectedContent)
+	}
 }
 
 func TestRsyncCmd(t *testing.T) {
