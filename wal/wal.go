@@ -44,8 +44,10 @@ type WAL struct {
 
 // InitWAL init the wal file
 func InitWAL(fileExecutor *fileop.BucketFileOperationner, c config.Config, shardIndex int, logger *zap.Logger, currentCheckpointShardIndex *int32) (*WAL, error) {
-	if err := os.MkdirAll(c.WalArchiveFolder, 0744); err != nil {
-		return nil, fmt.Errorf("could not create wal archive folder: %w", err)
+	if c.WalArchiveFolder != "" {
+		if err := os.MkdirAll(c.WalArchiveFolder, 0744); err != nil {
+			return nil, fmt.Errorf("could not create wal archive folder: %w", err)
+		}
 	}
 	if err := os.MkdirAll(c.WALFolder, 0744); err != nil {
 		return nil, fmt.Errorf("could not create folder for wal file: %w", err)
@@ -66,8 +68,10 @@ func InitWAL(fileExecutor *fileop.BucketFileOperationner, c config.Config, shard
 	walFileArchiveEvent := make(chan string, walFileArchiveEventLen)
 	archiveFileCreatedEvent := make(chan string, archiveFileCreatedEventLen)
 
-	logger.Info("InitWAL:AddExistingWALFileToChan")
-	AddExistingWALFileToChan(walFileArchiveEvent, c.WalArchiveFolder)
+	if c.WalArchiveFolder != "" {
+		logger.Info("InitWAL:AddExistingWALFileToChan")
+		AddExistingWALFileToChan(walFileArchiveEvent, c.WalArchiveFolder)
+	}
 
 	if walFile == nil {
 		persistentState.WalIndex++
@@ -385,7 +389,9 @@ func (w *WAL) suspend() {
 
 func (w *WAL) resumeWALFileChan() {
 	w.walFileArchiveEvent = make(chan string, walFileArchiveEventLen)
-	AddExistingWALFileToChan(w.walFileArchiveEvent, w.config.WalArchiveFolder)
+	if w.config.WalArchiveFolder != "" {
+		AddExistingWALFileToChan(w.walFileArchiveEvent, w.config.WalArchiveFolder)
+	}
 }
 
 func (w *WAL) createNewFile() error {
@@ -535,16 +541,22 @@ func (w *WAL) checkPointing() (errOpsCount int, err error) {
 	w.mergeBarrierOperationIndex = -1
 
 	archiveFileName := fmt.Sprintf(walArchiveFilePrefix+"%012d-s%05d.bin", w.persistentState.WalIndex, w.shardIndex)
-	fullPathArchive := path.Join(w.config.WalArchiveFolder, archiveFileName)
 	curWalPath := getWalPath(w.config, w.shardIndex)
-	err = wutils.MoveFile(curWalPath, fullPathArchive)
-	if err != nil {
-		return errOpsCount, err
+	if w.config.WalArchiveFolder != "" {
+		fullPathArchive := path.Join(w.config.WalArchiveFolder, archiveFileName)
+		err = wutils.MoveFile(curWalPath, fullPathArchive)
+		if err != nil {
+			return errOpsCount, err
+		}
+		w.walFileArchiveEvent <- fullPathArchive
+	} else {
+		err = os.Remove(curWalPath)
+		if err != nil {
+			return errOpsCount, fmt.Errorf("failed removing wal file %s: %w", curWalPath, err)
+		}
 	}
 
 	w.lastCheckpointingTime = time.Now()
-
-	w.walFileArchiveEvent <- fullPathArchive
 
 	return errOpsCount, nil
 }
