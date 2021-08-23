@@ -27,7 +27,7 @@ func InitDefaultConfig() *Config {
 		ActiveFolder:              "data/active",
 		ArchiveFolder:             "data/archive",
 		SqliteFolder:              "data/sqlite-archive",
-		WalArchiveFolder:          "data/wal-archive",
+		WalArchiveFolder:          "",
 		ShardCount:                4,
 		MaxFileOpen:               100,
 		WALFolder:                 ".",
